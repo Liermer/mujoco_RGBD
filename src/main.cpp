@@ -2,6 +2,7 @@
 #include <GLFW/glfw3.h>
 #include <GL/gl.h>
 #include <GL/glext.h>
+#include <GL/glu.h>
 #include <iostream>
 #include <string>
 #include <vector>
@@ -99,7 +100,7 @@ void convert_depth_to_grayscale(unsigned char* grayscale_buf, const float* depth
 // 这个函数现在将MuJoCo的深度图和相机位姿转换为世界坐标系下的点云
 void convertDepthToPointCloud(
     const float* depth_buf, int width, int height,
-    const mjvCamera* cam, const mjrContext* con,
+    const mjvCamera* cam, const mjModel* m, const mjData* d,
     std::shared_ptr<pcl::PointCloud<pcl::PointXYZ>>& point_cloud)
 {
     point_cloud = std::make_shared<pcl::PointCloud<pcl::PointXYZ>>();
@@ -110,8 +111,18 @@ void convertDepthToPointCloud(
 
     // 获取视场角和裁剪面距离
     float fovy = m->vis.global.fovy;
-    float znear = m->vis.map.znear * m->stat.extent;
-    float zfar = m->vis.map.zfar * m->stat.extent;
+
+    float extent = m->stat.extent;
+    float znear = m->vis.map.znear ;
+    float zfar = m->vis.map.zfar;
+    // Get the actual znear and zfar used by the renderer for this camera
+    // float znear = m->cam_fovy[cam->fixedcamid] > 0 ?
+    //               m->vis.map.znear * m->stat.extent :
+    //               -m->cam_pos[cam->fixedcamid * 3 + 2] - m->vis.map.znear;
+    // float zfar = m->cam_fovy[cam->fixedcamid] > 0 ?
+    //              m->vis.map.zfar * m->stat.extent :
+    //              -m->cam_pos[cam->fixedcamid * 3 + 2] - m->vis.map.zfar;
+
 
     // 获取相机在世界坐标系下的位姿
     mjtNum cam_pos[3];
@@ -134,12 +145,14 @@ void convertDepthToPointCloud(
             }
 
             // 2. 将归一化的深度值转换回相机坐标系下的线性Z值
-            float z_cam = -zfar * znear / (depth * (zfar - znear) - zfar);
+            // 参照OpenCV版本的深度线性化公式：z_near * z_far * extent / (z_far - raw_depth * (z_far - z_near))
+            float z_cam = -znear * zfar * extent / (zfar - depth * (zfar - znear));
 
             // 3. 将像素坐标(c, r)转换为相机坐标系下的X和Y值
             float aspect = (float)width / (float)height;
             float tan_fovy_half = tan(fovy * M_PI / 360.0);
             float y_cam =  -tan_fovy_half * z_cam * (2.0f * r / (height-1) - 1.0f);
+            
             float x_cam = aspect * tan_fovy_half * z_cam * (2.0f * c / (width-1) - 1.0f);
 
             // 4. 将相机坐标系下的点(x_cam, y_cam, z_cam)转换到世界坐标系
@@ -226,10 +239,9 @@ void get_color_from_distance(float& r, float& g, float& b, float distance, float
     }
 }
 
-// ---------- 新增辅助函数：在左上角绘制点云覆盖层 (已修正) ----------
-// 这个函数现在直接在世界坐标系下渲染点云，与主场景一致
+// 只渲染点云，不包含场景背景
 void draw_point_cloud_overlay(int window_width, int window_height,
-                              mjvScene* main_scn, mjrContext* main_con,
+                              mjvScene* robot_scn, mjrContext* main_con,
                               const std::shared_ptr<pcl::PointCloud<pcl::PointXYZ>>& cloud,
                               float min_dist, float max_dist)
 {
@@ -237,52 +249,77 @@ void draw_point_cloud_overlay(int window_width, int window_height,
         return;
     }
 
-    // 定义左上角的视口
     mjrRect overlay_rect = {20, window_height - CAM_HEIGHT - 20, CAM_WIDTH, CAM_HEIGHT};
-
-    // 使用主场景的相机设置，但应用于覆盖层视口
-    mjr_render(overlay_rect, main_scn, main_con);
-
-    // 接下来，在相同的视口和相机设置上，叠加我们的彩色点云
+    
+    // 设置视口但不渲染场景背景
     glPushAttrib(GL_ALL_ATTRIB_BITS);
-
-    // 切换到覆盖层视口
     glViewport(overlay_rect.left, overlay_rect.bottom, overlay_rect.width, overlay_rect.height);
 
-    // 禁用光照和纹理，因为我们将手动设置颜色
+    // 清除视口区域为黑色背景
+    glScissor(overlay_rect.left, overlay_rect.bottom, overlay_rect.width, overlay_rect.height);
+    glEnable(GL_SCISSOR_TEST);
+    glClearColor(0.0f, 0.0f, 0.0f, 1.0f); // 黑色背景
+    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+    glDisable(GL_SCISSOR_TEST);
+
+    // 设置投影矩阵以匹配机器人摄像头视角
+    glMatrixMode(GL_PROJECTION);
+    glPushMatrix();
+    glLoadIdentity();
+    
+    // 使用机器人摄像头的投影参数
+    float fovy = 45;
+    float aspect = (float)CAM_WIDTH / (float)CAM_HEIGHT;
+    float znear = 0.01f;
+    float zfar = 100.0f;
+    gluPerspective(fovy, aspect, znear, zfar);
+
+    // 设置模型视图矩阵
+    glMatrixMode(GL_MODELVIEW);
+    glPushMatrix();
+    glLoadIdentity();
+    
+    // 使用机器人摄像头的视角
+    float* cam_pos = robot_scn->camera[0].pos;
+    float* cam_forward = robot_scn->camera[0].forward;
+    float* cam_up = robot_scn->camera[0].up;
+    
+    gluLookAt(cam_pos[0], cam_pos[1], cam_pos[2],
+              cam_pos[0] + cam_forward[0], cam_pos[1] + cam_forward[1], cam_pos[2] + cam_forward[2],
+              cam_up[0], cam_up[1], cam_up[2]);
+
+    // 渲染点云
     glDisable(GL_LIGHTING);
     glDisable(GL_TEXTURE_2D);
-    // 启用深度测试
     glEnable(GL_DEPTH_TEST);
     glEnable(GL_BLEND);
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 
-
-    // 设置点的大小
     glPointSize(3.0f);
 
-    // 开始绘制点
     glBegin(GL_POINTS);
     for (const auto& point : cloud->points) {
-        if (pcl::isFinite(point)) { // 检查是否是有效点
-            // 计算点到主相机(自由相机)的距离
-            float dx = point.x - main_scn->camera[0].pos[0];
-            float dy = point.y - main_scn->camera[0].pos[1];
-            float dz = point.z - main_scn->camera[0].pos[2];
+        if (pcl::isFinite(point)) {
+            float dx = point.x - cam_pos[0];
+            float dy = point.y - cam_pos[1];
+            float dz = point.z - cam_pos[2];
             float dist_to_cam = sqrt(dx*dx + dy*dy + dz*dz);
 
             float r, g, b;
             get_color_from_distance(r, g, b, dist_to_cam, min_dist, max_dist);
-            glColor4f(r, g, b, 0.9f); // 设置颜色和一点透明度
+            glColor4f(r, g, b, 0.9f);
             glVertex3f(point.x, point.y, point.z);
         }
     }
     glEnd();
 
-    // 恢复状态
-    glPopAttrib();
+    // 恢复矩阵状态
+    glPopMatrix(); // ModelView
+    glMatrixMode(GL_PROJECTION);
+    glPopMatrix();
+    glMatrixMode(GL_MODELVIEW);
 
-    // 恢复视口到整个窗口
+    glPopAttrib();
     glViewport(0, 0, window_width, window_height);
 }
 
@@ -412,7 +449,7 @@ int main(int argc, char** argv){
         mjr_readPixels(rgb_buffer, depth_buffer, offscreen_vp, &con);
 
         // 2. 将深度图转换为世界坐标系下的点云
-        convertDepthToPointCloud(depth_buffer, CAM_WIDTH, CAM_HEIGHT, &cam_robot, &con, pointCloud);
+        convertDepthToPointCloud(depth_buffer, CAM_WIDTH, CAM_HEIGHT, &cam_robot, m, d, pointCloud);
 
         // 3. 计算点云的最小和最大距离以用于颜色映射
         float min_dist_raw = 1e6, max_dist_raw = -1e6;
