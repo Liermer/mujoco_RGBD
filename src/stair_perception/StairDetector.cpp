@@ -236,7 +236,7 @@ void StairDetector::updateBuffers(std::vector<Stair>& stairs_buffer, std::vector
 bool StairDetector::isDetectedStair(std::vector<Stair>& stairs_buffer, std::vector<int>& counter_buffer, Stair& detect_stair) {
     // ... (Implementation from StairModeling::isDetectedStair)
     for (size_t i = 0; i < stairs_buffer.size(); ++i) {
-        if (counter_buffer[i] == config_.filter_max_limit_) {
+        if (counter_buffer[i] >= config_.filter_max_limit_ - 1) {
             detect_stair = stairs_buffer[i];
             return true;
         }
