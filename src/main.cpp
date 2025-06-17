@@ -1,34 +1,49 @@
 #include <mujoco/mujoco.h>
 #include <GLFW/glfw3.h>
+#include <GL/gl.h>
+#include <GL/glext.h>
 #include <iostream>
-#include <unordered_map>
 #include <string>
-#include <cmath>
-#include <chrono>    
+#include <vector>
+#include <algorithm>
+#include <chrono>
+#include <cstdio>
 
 // ---------- 全局 ----------
 mjModel* m = nullptr;
-mjData*  d = nullptr;
-mjvScene scn;  mjvCamera cam;  mjvOption opt;  mjrContext con;
+mjData* d = nullptr;
 
-const float MOUSE_SENS  = 0.02f;
-const float SCROLL_SENS = 0.2f;
+// 主场景和相机
+mjvScene scn;
+mjvCamera cam;
+mjvOption opt;
+mjrContext con;
+
+// ---------- 用于机器人视角和深度/彩色图的全局变量 ----------
+mjvScene scn_robot;
+const int CAM_WIDTH = 320;
+const int CAM_HEIGHT = 240;
+
+// 缓冲区
+unsigned char* rgb_buffer = nullptr;
+unsigned char* depth_grayscale_buffer = nullptr;
+float* depth_buffer = nullptr;
+
+// OpenGL 纹理ID
+GLuint depth_tex_id;
+GLuint rgb_tex_id;
+
 
 // ---------- 交互用全局 ----------
 bool btn_l = false, btn_m = false, btn_r = false;
 double lastx = 0, lasty = 0;
+const float MOUSE_SENS  = 0.02f;
+const float SCROLL_SENS = 0.2f;
 
-// ---------- 用户输入状态（新增） ----------
-int  user_mode = 1;   // 1:平地行走  2:双支撑站立  3:上楼梯  4:下楼梯  5:上斜坡  6:下斜坡
-bool walk_cmd  = false; // 上方向键行走指令
+// ---------- 用户输入状态 ----------
+int  user_mode = 1;
+bool walk_cmd  = false;
 
-// ---------- 工具函数 ----------
-void zero_all_pos_actuators(){
-    int na = m->nu;
-    for(int i=0;i<na;i++){
-        d->ctrl[i] = 0.0;
-    }
-}
 // ---------- 关节角度控制接口 ----------
 bool set_joint_deg(const std::string &act_name, double deg){
     int act_id = mj_name2id(m, mjOBJ_ACTUATOR, act_name.c_str());
@@ -39,6 +54,97 @@ bool set_joint_deg(const std::string &act_name, double deg){
     d->ctrl[act_id] = deg * M_PI / 180.0;
     return true;
 }
+
+// ---------- 辅助函数：将深度图（float）转换为可视化的灰度图（uchar） ----------
+void convert_depth_to_grayscale(unsigned char* grayscale_buf, const float* depth_buf, int width, int height) {
+    float min_val = 1.0f, max_val = 0.0f;
+    for (int i = 0; i < width * height; ++i) {
+        if (depth_buf[i] < 1.0f) {
+            if (depth_buf[i] < min_val) min_val = depth_buf[i];
+            if (depth_buf[i] > max_val) max_val = depth_buf[i];
+        }
+    }
+    
+    static int frame_count = 0;
+    // if (frame_count++ % 100 == 0) {
+    //     printf("Depth range: min=%.3f, max=%.3f\n", min_val, max_val);
+    // }
+
+    float range = max_val - min_val;
+    if (range < 1e-5) {
+        range = 1.0f;
+        min_val = 0.0f;
+    }
+
+    for (int i = 0; i < width * height; ++i) {
+        float z = depth_buf[i];
+        unsigned char gray;
+        if (z >= 1.0f) {
+            gray = 0;
+        } else {
+            float normalized = (z - min_val) / range;
+            gray = 255 - (unsigned char)(255.0f * std::max(0.0f, std::min(1.0f, normalized)));
+        }
+        grayscale_buf[3*i + 0] = gray;
+        grayscale_buf[3*i + 1] = gray;
+        grayscale_buf[3*i + 2] = gray;
+    }
+}
+
+// ---------- 改进的辅助函数：绘制覆盖层 ----------
+void draw_overlay(int window_width, int window_height, int corner) {
+    mjrRect overlay_rect;
+    GLuint tex_id;
+
+    if (corner == 0) { // Top-Right for Depth
+        overlay_rect = {window_width - CAM_WIDTH - 20, window_height - CAM_HEIGHT - 20, CAM_WIDTH, CAM_HEIGHT};
+        tex_id = depth_tex_id;
+    } else { // Bottom-Right for RGB
+        overlay_rect = {window_width - CAM_WIDTH - 20, 20, CAM_WIDTH, CAM_HEIGHT};
+        tex_id = rgb_tex_id;
+    }
+    
+    // 使用 glPush/PopAttrib 保存和恢复OpenGL状态，避免干扰3D渲染
+    // glPushAttrib(GL_ENABLE_BIT | GL_PROJECTION_BIT | GL_MODELVIEW_BIT);
+    glPushAttrib(GL_ENABLE_BIT);
+
+    glMatrixMode(GL_PROJECTION);
+    glPushMatrix();
+    glLoadIdentity();
+    glOrtho(0, window_width, 0, window_height, -1, 1);
+    
+    glMatrixMode(GL_MODELVIEW);
+    glPushMatrix();
+    glLoadIdentity();
+    
+    // ***** 关键修复：禁用光照和深度测试 *****
+    glDisable(GL_LIGHTING);
+    glDisable(GL_DEPTH_TEST);
+    
+    glEnable(GL_TEXTURE_2D);
+    glBindTexture(GL_TEXTURE_2D, tex_id);
+
+    // 设置纹理的颜色如何与基本颜色混合
+    // GL_REPLACE 会忽略基本颜色，只显示纹理
+    glTexEnvi(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_REPLACE);
+    
+    glColor4f(1.0f, 1.0f, 1.0f, 1.0f);
+    glBegin(GL_QUADS);
+    glTexCoord2f(0, 1); glVertex2i(overlay_rect.left, overlay_rect.bottom);
+    glTexCoord2f(1, 1); glVertex2i(overlay_rect.left + overlay_rect.width, overlay_rect.bottom);
+    glTexCoord2f(1, 0); glVertex2i(overlay_rect.left + overlay_rect.width, overlay_rect.bottom + overlay_rect.height);
+    glTexCoord2f(0, 0); glVertex2i(overlay_rect.left, overlay_rect.bottom + overlay_rect.height);
+    glEnd();
+    
+    // 恢复状态
+    glMatrixMode(GL_MODELVIEW);
+    glPopMatrix();
+    glMatrixMode(GL_PROJECTION);
+    glPopMatrix();
+
+    glPopAttrib();
+}
+
 
 // ---------- GLFW 回调 ----------
 void mouse_btn_cb(GLFWwindow* window, int button, int action, int mods) {
@@ -63,67 +169,34 @@ void mouse_move_cb(GLFWwindow* window, double xpos, double ypos) {
 void scroll_cb(GLFWwindow* window, double, double sy) {
     mjv_moveCamera(m, mjMOUSE_ZOOM, 0, float(sy) * SCROLL_SENS, &scn, &cam);
 }
-// ---------- 按键操作 ----------
-void key_cb(GLFWwindow*, int key, int /*scancode*/, int action, int /*mods*/){
-    if(action == GLFW_PRESS){
-        if(key == GLFW_KEY_R){
-            mj_resetData(m, d);
-            std::cout << "[INPUT] Reset simulation\n";
-        }
-        else if(key == GLFW_KEY_Z){
-            zero_all_pos_actuators();
-            std::cout << "[INPUT] Zero all actuator targets\n";
-        }
-        else if(key == GLFW_KEY_1){
-            user_mode = 1;
-            std::cout << "[INPUT] Mode set to 平地行走 (1)\n";
-        }
-        else if(key == GLFW_KEY_2){
-            user_mode = 2;
-            std::cout << "[INPUT] Mode set to 双支撑站立 (2)\n";
-        }
-        else if(key == GLFW_KEY_3){
-            user_mode = 3;
-            std::cout << "[INPUT] Mode set to 上楼梯   (3)\n";
-        }
-        else if(key == GLFW_KEY_4){
-            user_mode = 4;
-            std::cout << "[INPUT] Mode set to 下楼梯   (4)\n";
-        }
-        else if(key == GLFW_KEY_5){
-            user_mode = 5;
-            std::cout << "[INPUT] Mode set to 上斜坡   (5)\n";
-        }
-        else if(key == GLFW_KEY_6){
-            user_mode = 6;
-            std::cout << "[INPUT] Mode set to 下斜坡   (6)\n";
-        }
-        else if(key == GLFW_KEY_UP){
-            walk_cmd = true;
-            std::cout << "[INPUT] Directional command: UP pressed\n";
-        }
-    }
-    else if(action == GLFW_RELEASE){
-        if(key == GLFW_KEY_UP){
-            walk_cmd = false;
-            std::cout << "[INPUT] Directional command: UP released\n";
-        }
+void key_cb(GLFWwindow*, int key, int, int action, int){
+    if(action == GLFW_PRESS && key == GLFW_KEY_R){
+        mj_resetData(m, d);
+        std::cout << "[INPUT] Reset simulation\n";
     }
 }
 
-int main(){
-    const char* xml = "/home/ziyi/workspace/mujoco_RGBD/model/scene/scene.xml"; //这里的路径需要根据自己的路径进行修改
+int main(int argc, char** argv){
+    const char* xml_path = "/home/ziyi/workspace/mujoco_RGBD/model/scene/scene.xml";
+    if (argc > 1) {
+        xml_path = argv[1];
+    }
+    std::cout << "Loading model from: " << xml_path << std::endl;
+
     char err[1000];
-    m = mj_loadXML(xml, nullptr, err, 1000);
+    m = mj_loadXML(xml_path, nullptr, err, 1000);
     if(!m){
         std::cerr << "XML load error: " << err << "\n";
         return 1;
     }
     d = mj_makeData(m);
 
-    // ---------- 建窗 & 注册回调 ----------
-    glfwInit();
-    GLFWwindow* win = glfwCreateWindow(1200, 900, "MuJoCo Exo", nullptr, nullptr);
+    if (!glfwInit()) return -1;
+    GLFWwindow* win = glfwCreateWindow(1200, 900, "MuJoCo Exo with RGB/Depth View", nullptr, nullptr);
+    if (!win) {
+        glfwTerminate();
+        return -1;
+    }
     glfwMakeContextCurrent(win);
     glfwSwapInterval(1);
 
@@ -136,44 +209,88 @@ int main(){
     mjv_defaultOption(&opt);
     mjv_defaultScene(&scn);
     mjr_defaultContext(&con);
-    mjv_makeScene(m, &scn, 1000);
+
+    mjv_makeScene(m, &scn, 2000);
     mjr_makeContext(m, &con, mjFONTSCALE_150);
+    
+    mjv_makeScene(m, &scn_robot, 2000);
+    mjr_resizeOffscreen(CAM_WIDTH, CAM_HEIGHT, &con);
+    rgb_buffer = new unsigned char[CAM_WIDTH * CAM_HEIGHT * 3];
+    depth_grayscale_buffer = new unsigned char[CAM_WIDTH * CAM_HEIGHT * 3];
+    depth_buffer = new float[CAM_WIDTH * CAM_HEIGHT];
 
-    // 初始化控制目标置零
-    zero_all_pos_actuators();
-    set_joint_deg("pos_EL_hip_joint",  90.0);
-    set_joint_deg("pos_EL_knee_joint", -90.0);
+    glGenTextures(1, &depth_tex_id);
+    glBindTexture(GL_TEXTURE_2D, depth_tex_id);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
 
-    // ------------- 同步模式主循环 -------------
+    glGenTextures(1, &rgb_tex_id);
+    glBindTexture(GL_TEXTURE_2D, rgb_tex_id);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+
     using clock = std::chrono::steady_clock;
     auto t0 = clock::now();
 
+    int robot_cam_id = mj_name2id(m, mjOBJ_CAMERA, "depth_cam");
+    if (robot_cam_id == -1) {
+        std::cerr << "Error: Camera 'depth_cam' not found in model." << std::endl;
+        return -1;
+    }
+
     while(!glfwWindowShouldClose(win)){
-        // 计算“现实时间”已经过去多少秒
         auto now = clock::now();
         double realtime = std::chrono::duration<double>(now - t0).count();
 
-        // 仿真补齐到现实时间：每个 step 对应 1/m->opt.timestep 秒
-        // d->time 单位：秒
         while(d->time < realtime){
             mj_step(m, d);
         }
-
-        // 渲染
-        mjv_updateScene(m, d, &opt, nullptr, &cam, mjCAT_ALL, &scn);
+        
+        mjvCamera cam_robot;
+        cam_robot.type = mjCAMERA_FIXED;
+        cam_robot.fixedcamid = robot_cam_id;
+        mjv_updateScene(m, d, &opt, nullptr, &cam_robot, mjCAT_ALL, &scn_robot);
+        
+        mjrRect offscreen_vp = {0, 0, CAM_WIDTH, CAM_HEIGHT};
+        mjr_setBuffer(mjFB_OFFSCREEN, &con);
+        mjr_render(offscreen_vp, &scn_robot, &con);
+        
+        mjr_readPixels(rgb_buffer, depth_buffer, offscreen_vp, &con);
+        
+        mjr_setBuffer(mjFB_WINDOW, &con);
         int w, h;
         glfwGetFramebufferSize(win, &w, &h);
-        mjrRect vp{0, 0, w, h};
-        mjr_render(vp, &scn, &con);
+        mjrRect main_vp{0, 0, w, h};
+        mjv_updateScene(m, d, &opt, nullptr, &cam, mjCAT_ALL, &scn);
+        mjr_render(main_vp, &scn, &con);
+        
+        convert_depth_to_grayscale(depth_grayscale_buffer, depth_buffer, CAM_WIDTH, CAM_HEIGHT);
+        glBindTexture(GL_TEXTURE_2D, depth_tex_id);
+        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, CAM_WIDTH, CAM_HEIGHT, 0, GL_RGB, GL_UNSIGNED_BYTE, depth_grayscale_buffer);
+
+        glBindTexture(GL_TEXTURE_2D, rgb_tex_id);
+        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, CAM_WIDTH, CAM_HEIGHT, 0, GL_RGB, GL_UNSIGNED_BYTE, rgb_buffer);
+
+        draw_overlay(w, h, 0); // 0: 右上角，深度图
+        draw_overlay(w, h, 1); // 1: 右下角，彩色图
 
         glfwSwapBuffers(win);
         glfwPollEvents();
     }
 
-    // 清理
+    delete[] rgb_buffer;
+    delete[] depth_grayscale_buffer;
+    delete[] depth_buffer;
+    glDeleteTextures(1, &depth_tex_id);
+    glDeleteTextures(1, &rgb_tex_id);
     mj_deleteData(d);
     mj_deleteModel(m);
     mjv_freeScene(&scn);
+    mjv_freeScene(&scn_robot);
     mjr_freeContext(&con);
     glfwTerminate();
     return 0;
