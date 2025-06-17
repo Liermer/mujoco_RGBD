@@ -8,6 +8,7 @@
 #include <algorithm>
 #include <chrono>
 #include <cstdio>
+#include "Pre_process.hpp"
 
 // ---------- 全局 ----------
 mjModel* m = nullptr;
@@ -18,6 +19,8 @@ mjvScene scn;
 mjvCamera cam;
 mjvOption opt;
 mjrContext con;
+
+
 
 // ---------- 用于机器人视角和深度/彩色图的全局变量 ----------
 mjvScene scn_robot;
@@ -90,6 +93,36 @@ void convert_depth_to_grayscale(unsigned char* grayscale_buf, const float* depth
         grayscale_buf[3*i + 2] = gray;
     }
 }
+struct Point3D {
+    float x, y, z;
+};
+void convertDepthToPointCloud(
+    const float* depth_buf, int width, int height,
+    float fx, float fy, float cx, float cy,
+    std::shared_ptr<pcl::PointCloud<pcl::PointXYZ>>& point_cloud)
+{
+    // point_cloud.clear();
+    point_cloud = std::make_shared<pcl::PointCloud<pcl::PointXYZ>>();
+
+    point_cloud->reserve(width * height);
+
+    for (int v = 0; v < height; ++v) {
+        for (int u = 0; u < width; ++u) {
+            float depth_value = depth_buf[v * width + u];
+
+            // 深度值 < 1.0f 通常表示有效的物体距离，
+            // >= 1.0f 表示背景或超出远裁剪平面的点，我们将其忽略。
+            if (depth_value < 1.0f) {
+                pcl::PointXYZ point;
+                point.z = depth_value;
+                point.x = (static_cast<float>(u) - cx) * point.z / fx;
+                point.y = (static_cast<float>(v) - cy) * point.z / fy;
+                
+                point_cloud->push_back(point);
+            }
+        }
+    }
+}
 
 // ---------- 改进的辅助函数：绘制覆盖层 ----------
 void draw_overlay(int window_width, int window_height, int corner) {
@@ -130,10 +163,10 @@ void draw_overlay(int window_width, int window_height, int corner) {
     
     glColor4f(1.0f, 1.0f, 1.0f, 1.0f);
     glBegin(GL_QUADS);
-    glTexCoord2f(0, 1); glVertex2i(overlay_rect.left, overlay_rect.bottom);
-    glTexCoord2f(1, 1); glVertex2i(overlay_rect.left + overlay_rect.width, overlay_rect.bottom);
-    glTexCoord2f(1, 0); glVertex2i(overlay_rect.left + overlay_rect.width, overlay_rect.bottom + overlay_rect.height);
-    glTexCoord2f(0, 0); glVertex2i(overlay_rect.left, overlay_rect.bottom + overlay_rect.height);
+    glTexCoord2f(1, 1); glVertex2i(overlay_rect.left, overlay_rect.bottom);
+    glTexCoord2f(0, 1); glVertex2i(overlay_rect.left + overlay_rect.width, overlay_rect.bottom);
+    glTexCoord2f(0, 0); glVertex2i(overlay_rect.left + overlay_rect.width, overlay_rect.bottom + overlay_rect.height);
+    glTexCoord2f(1, 0); glVertex2i(overlay_rect.left, overlay_rect.bottom + overlay_rect.height);
     glEnd();
     
     // 恢复状态
@@ -181,6 +214,21 @@ int main(int argc, char** argv){
     if (argc > 1) {
         xml_path = argv[1];
     }
+    // 计算相机参数
+    const double fovy_deg = 45.0; // 从 XML 中获取
+    const double fovy_rad = fovy_deg * M_PI / 180.0;
+    const float fx = static_cast<float>((CAM_HEIGHT / 2.0) / tan(fovy_rad / 2.0));
+    const float fy = fx;
+    const float cx = CAM_WIDTH / 2.0f;
+    const float cy = CAM_HEIGHT / 2.0f;
+
+    // ---------- 点云 ----------
+    std::shared_ptr<pcl::PointCloud<pcl::PointXYZ>> pointCloud;
+    Pre_process cloud(pointCloud);
+
+
+
+
     std::cout << "Loading model from: " << xml_path << std::endl;
 
     char err[1000];
@@ -260,7 +308,22 @@ int main(int argc, char** argv){
         mjr_render(offscreen_vp, &scn_robot, &con);
         
         mjr_readPixels(rgb_buffer, depth_buffer, offscreen_vp, &con);
+
+        // 将深度图转换为点云
+        std::shared_ptr<pcl::PointCloud<pcl::PointXYZ>> pointCloud;
+        convertDepthToPointCloud(depth_buffer, CAM_WIDTH, CAM_HEIGHT, fx, fy, cx, cy, pointCloud);
         
+        // (可选) 打印一些点云信息来验证
+        // static int frame_count_pc = 0;
+        // if (frame_count_pc++ % 100 == 0 && !pointCloud.empty()) {
+        //     printf("Point cloud generated with %zu points.\n", pointCloud.size());
+        //     printf("First point: (%.3f, %.3f, %.3f)\n", 
+        //            pointCloud[0].x, pointCloud[0].y, pointCloud[0].z);
+        // }
+
+        cloud.pre_process(pointCloud);
+
+        // 渲染主场景
         mjr_setBuffer(mjFB_WINDOW, &con);
         int w, h;
         glfwGetFramebufferSize(win, &w, &h);
