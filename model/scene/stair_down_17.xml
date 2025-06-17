@@ -1,0 +1,17 @@
+<mujoco model="go2 scene">
+
+  <statistic center="0 0 0.1" extent="0.8" />
+
+  <visual>
+    <headlight diffuse="0.6 0.6 0.6" ambient="0.3 0.3 0.3" specular="0 0 0" />
+    <rgba haze="0.15 0.25 0.35 1" />
+    <global azimuth="-130" elevation="-20" />
+  </visual>
+
+  <asset>
+    <texture type="skybox" builtin="gradient" rgb1="0.3 0.5 0.7" rgb2="0 0 0" width="512" height="3072" />
+  </asset>
+
+  <worldbody>
+  <geom pos="-10.9 19.5 0.085" type="box" size="0.1 0.75 0.085" quat="1.0 0.0 0.0 0.0" /><geom pos="-10.7 19.5 0.255" type="box" size="0.1 0.75 0.085" quat="1.0 0.0 0.0 0.0" /><geom pos="-10.5 19.5 0.42500000000000004" type="box" size="0.1 0.75 0.085" quat="1.0 0.0 0.0 0.0" /><geom pos="-10.3 19.5 0.595" type="box" size="0.1 0.75 0.085" quat="1.0 0.0 0.0 0.0" /><geom pos="-10.1 19.5 0.7649999999999999" type="box" size="0.1 0.75 0.085" quat="1.0 0.0 0.0 0.0" /><geom pos="-9.9 19.5 0.9349999999999998" type="box" size="0.1 0.75 0.085" quat="1.0 0.0 0.0 0.0" /></worldbody>
+</mujoco>

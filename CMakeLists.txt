@@ -1,44 +1,21 @@
 cmake_minimum_required(VERSION 3.10)
+project(mujoco_cpp_gui)
 
-project(mujoco_camera)
+include_directories(${CMAKE_SOURCE_DIR}/mujoco/include)
+include_directories(${CMAKE_SOURCE_DIR}/mujoco/include/mujoco)
 
-# Compiler settings
-SET (CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -pthread")
+link_directories(${CMAKE_SOURCE_DIR}/mujoco/lib)
 
-# finding modules
-find_package(OpenCV REQUIRED) 
-find_package(PCL REQUIRED)
-find_package(glfw3 REQUIRED)
-find_package(X11 REQUIRED)
+find_package(PkgConfig REQUIRED)
+pkg_search_module(GLFW REQUIRED glfw3)
+include_directories(${GLFW_INCLUDE_DIRS})
+link_directories(${GLFW_LIBRARY_DIRS})
 
-# MuJoCo configuration
-set(MUJOCO_ROOT "/home/ziyi/.mujoco/mujoco-3.3.0")
-set(MUJOCO_INCLUDE_DIRS "${MUJOCO_ROOT}/include")
-set(MUJOCO_LIBRARY_DIRS "${MUJOCO_ROOT}/lib")
-set(MUJOCO_LIBRARIES "${MUJOCO_ROOT}/lib/libmujoco.so")
 
-include_directories(include
-                    ${OpenCV_INCLUDE_DIRS}
-                    ${PCL_INCLUDE_DIRS}
-                    ${MUJOCO_INCLUDE_DIRS})
+include_directories(${CMAKE_SOURCE_DIR}/src)
+include_directories(${CMAKE_SOURCE_DIR}/include)
 
-                    
-link_directories(${PCL_LIBRARY_DIRS}
-                 ${MUJOCO_LIBRARY_DIRS})
+add_executable(main src/main.cpp)
+target_link_libraries(main mujoco pthread dl m GL ${GLFW_LIBRARIES})
 
-# add_executable(camera_test src/camera.cpp)                
 
-# target_link_libraries(camera_test 
-#             ${MUJOCO_LIBRARIES}
-#             ${OpenCV_LIBS}
-#             ${PCL_LIBRARIES})     
-
-add_executable(multi_win_test src/two_window.cpp
-                                src/mujoco_rgbd_camera.cpp)     
-
-target_link_libraries(multi_win_test
-            ${MUJOCO_LIBRARIES}
-            ${OpenCV_LIBS}
-            ${PCL_LIBRARIES}
-            glfw
-            X11)              

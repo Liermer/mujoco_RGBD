@@ -1,0 +1,218 @@
+<mujoco model="exoskeleton">
+  <compiler angle="radian"/>
+
+  <asset>
+    <mesh name="EL_ankle" file="./meshes/EL-ankle.stl" scale="0.001 0.001 0.001"/>
+    <mesh name="EL_knee" file="./meshes/EL-knee.stl" scale="0.001 0.001 0.001"/>
+    <mesh name="EB" file="./meshes/EB.stl" scale="0.001 0.001 0.001"/>
+    <mesh name="EL_hip" file="./meshes/EL-hip.stl" scale="0.001 0.001 0.001"/>
+    <mesh name="body" file="./meshes/body.stl" scale="0.001 0.001 0.001"/>
+    <mesh name="head" file="./meshes/head.stl" scale="0.001 0.001 0.001"/>
+    <mesh name="L_forearm" file="./meshes/L-forearm.stl" scale="0.001 0.001 0.001"/>
+    <mesh name="L_arm" file="./meshes/L-arm.stl" scale="0.001 0.001 0.001"/>
+    <mesh name="L_hand" file="./meshes/L-hand.stl" scale="0.001 0.001 0.001"/>
+    <mesh name="R_arm" file="./meshes/R-arm.stl" scale="0.001 0.001 0.001"/>
+    <mesh name="R_hand" file="./meshes/R-hand.stl" scale="0.001 0.001 0.001"/>
+    <mesh name="ER_hip" file="./meshes/ER-hip.stl" scale="0.001 0.001 0.001"/>
+    <mesh name="ER_knee" file="./meshes/ER-knee.stl" scale="0.001 0.001 0.001"/>
+    <mesh name="ER_ankle" file="./meshes/ER-ankle.stl" scale="0.001 0.001 0.001"/>
+    <mesh name="R_forearm" file="./meshes/R-forearm.stl" scale="0.001 0.001 0.001"/>
+  </asset>
+
+  <worldbody>
+  <body name="EB" pos="-1 0 1.3" quat="0.7071 0 0 0.7071">
+    <!-- <joint name = "base" type="free"/> -->
+    <!-- <joint name="long_link_joint_x" type="slide" axis="0 1 0" range = '-1 1'/>
+    <joint name="long_link_joint_z" type="slide" axis="0 0 1" range  = '-0.1 0.1'/> -->
+    <!-- <joint name="long_link_joint_y" axis="0 0 1" range = "-1 1"/> -->
+    <geom name="EB_collision" pos="1.38955e-10 0 -2" quat="1 0 -3.47384e-11 0" type="mesh" mesh="EB"/>
+    <body name="EL_hip" pos="0.218902 0.039 -0.168795" quat="0 0.681998 0 -0.731354">
+      <inertial pos="0.158888 0.0247193 0.0597323" quat="0.578287 0.401701 0.573377 0.418878" mass="15.9115" diaginertia="0.365197 0.319066 0.0978994"/>
+      <joint name="EL_hip_joint" pos="0 0 0" axis="4.69037e-07 0 1" range="-1.5708 1.5708" actuatorfrcrange="-1000000 1000000"/>
+      <geom name="EL_hip_collision" pos="1.99513 -1.26085e-12 -0.138013" quat="0 -0.681998 0 0.731354" type="mesh" mesh="EL_hip"/>
+      <body name="EL_knee" pos="0.43 0 0.0025" quat="0 -1 0 0">
+        <inertial pos="0.154693 0.0059421 -0.0169216" quat="0.401992 0.573192 0.511101 0.498628" mass="8.82676" diaginertia="0.119293 0.105824 0.0291683"/>
+        <joint name="EL_knee_joint" pos="0 0 0" axis="-4.69037e-07 0 1" range="-0.174533 2.0944" actuatorfrcrange="-1000000 1000000"/>
+        <geom name="EL_knee_collision" pos="1.99513 -2.28873e-12 0.136513" quat="0.681998 0 -0.731354 0" type="mesh" mesh="EL_knee"/>
+        <body name="EL_ankle" pos="0.4 0 -0.0025">
+          <inertial pos="0.063803 -0.0531817 -0.0573719" quat="0.665675 0.688908 0.241718 -0.15445" mass="1" diaginertia="0.0167909 0.0160893 0.00490528"/>
+          <joint name="EL_ankle_joint" pos="0 0 0" axis="-4.69037e-07 0 1" range="-1.0472 1.5708" actuatorfrcrange="-1000000 1000000"/>
+          <geom name="EL_ankle_collision" pos="1.99513 -2.29743e-12 0.136513" quat="0.681998 0 -0.731354 0" type="mesh" mesh="EL_ankle"/>
+        </body>
+      </body>
+    </body>
+    <body name="ER_hip" pos="-0.218902 0.039 -0.168795" quat="0.681998 0 -0.731354 0">
+      <inertial pos="-0.158888 -0.0247193 -0.0597323" quat="0.578287 0.401701 0.573377 0.418878" mass="15.9115" diaginertia="0.365197 0.319066 0.0978994"/>
+      <joint name="ER_hip_joint" pos="0 0 0" axis="4.69037e-07 0 1" range="-1.5708 1.5708" actuatorfrcrange="-1000000 1000000"/>
+      <geom name="ER_hip_collision" pos="-1.99513 -7.06823e-12 0.138013" quat="0.681998 0 0.731354 0" type="mesh" mesh="ER_hip"/>
+      <body name="ER_knee" pos="-0.43 0 -0.0025" quat="0 1 0 0">
+        <inertial pos="-0.154693 -0.0059421 0.0169216" quat="0.401992 0.573192 0.511101 0.498628" mass="8.82676" diaginertia="0.119293 0.105824 0.0291683"/>
+        <joint name="ER_knee_joint" pos="0 0 0" axis="-4.69037e-07 0 1" range="-0.174533 2.0944" actuatorfrcrange="-1000000 1000000"/>
+        <geom name="ER_knee_collision" pos="-1.99513 -2.00611e-12 -0.136513" quat="0 -0.681998 0 -0.731354" type="mesh" mesh="ER_knee"/>
+        <body name="ER_ankle" pos="-0.4 0 0.0025">
+          <inertial pos="-0.0638029 0.0531818 0.057372" quat="0.665675 0.688908 0.241718 -0.154449" mass="1" diaginertia="0.016791 0.0160893 0.00490521"/>
+          <joint name="ER_ankle_joint" pos="0 0 0" axis="-4.69037e-07 0 1" range="-1.0472 1.5708" actuatorfrcrange="-1000000 1000000"/>
+          <geom name="ER_ankle_collision" pos="-1.99513 0 -0.136513" quat="0 -0.681998 0 -0.731354" type="mesh" mesh="ER_ankle"/>
+        </body>
+      </body>
+    </body>
+    <body name="body">
+      <inertial pos="7.27857e-07 0.0113203 0.247415" quat="0.706569 -0.0275781 0.027586 0.706568" mass="35.2638" diaginertia="1.06739 0.949503 0.371946"/>
+      <joint name="torso_joint" pos="0 0 0" axis="0 0 1" range="-1.5708 1.5708" actuatorfrcrange="-1000000 1000000"/>
+      <geom name="body_collision" pos="9.60869e-11 0 -1.383" quat="1 0 -3.47386e-11 0" type="mesh" mesh="body"/>
+      <body name="R_arm" pos="-0.2 0.0464213 0.385692" quat="0 0.707107 0 0.707107">
+        <inertial pos="-0.12833 -0.00625431 -0.0426701" quat="-0.0526397 0.634312 -0.0023652 0.77128" mass="2.2828" diaginertia="0.0185807 0.0176686 0.00286415"/>
+        <joint name="RS_joint" pos="0 0 0" axis="0 0 1" range="-3.14159 1.5708" actuatorfrcrange="-1000000 1000000"/>
+        <geom name="R_arm_collision" pos="-4.00006 3.37563e-09 0.00473992" quat="0 0.707107 0 0.707107" type="mesh" mesh="R_arm"/>
+        <body name="R_forearm" pos="-0.264847 -0.0198197 -0.0796568" quat="0 0.707107 0 0.707107">
+          <inertial pos="-0.0268667 -0.0153833 -0.131647" quat="0.976435 -0.0653018 0.0863539 0.186689" mass="1.24814" diaginertia="0.0074798 0.0074271 0.000957918"/>
+          <joint name="R_elbow_joint" pos="0 0 0" axis="1 0 0" range="-2.0944 0.174533" actuatorfrcrange="-1000000 1000000"/>
+          <geom name="R_forearm_collision" pos="2.11764e-09 4.69913e-09 -4" quat="1 0 -3.47386e-11 0" type="mesh" mesh="R_forearm"/>
+          <body name="R_hand" pos="-0.0444275 -0.0400143 -0.281903">
+            <inertial pos="-0.0276707 -0.0282138 -0.0630869" quat="0.963141 -0.187289 0.178891 0.072668" mass="0.39981" diaginertia="0.00105872 0.000917332 0.000307705"/>
+            <joint name="R_hand_joint" pos="0 0 0" axis="0 0 -1" range="-3.14159 3.14159" actuatorfrcrange="-1000000 1000000"/>
+            <geom name="R_hand_collision" pos="0.021435 -0.00142723 -4.00006" quat="1 0 -3.47386e-11 0" type="mesh" mesh="R_hand"/>
+          </body>
+        </body>
+      </body>
+      <body name="L_arm" pos="0.2 0.0464213 0.385692" quat="0 -0.707107 0 -0.707107">
+        <inertial pos="-0.12833 -0.00625431 0.0426701" quat="0.0023652 0.77128 0.0526397 0.634312" mass="2.2828" diaginertia="0.0185807 0.0176686 0.00286415"/>
+        <joint name="LS_joint" pos="0 0 0" axis="0 0 1" range="-3.14159 1.5708" actuatorfrcrange="-1000000 1000000"/>
+        <geom name="L_arm_collision" pos="-4.00006 3.37555e-09 -0.00473992" quat="0 0.707107 0 0.707107" type="mesh" mesh="L_arm"/>
+        <body name="L_forearm" pos="-0.264847 -0.0198197 0.0796568" quat="0 0.707107 0 0.707107">
+          <inertial pos="0.0268667 -0.0153833 -0.131647" quat="0.976435 -0.0653018 -0.0863539 -0.186689" mass="1.24814" diaginertia="0.0074798 0.0074271 0.000957918"/>
+          <joint name="L_elbow_joint" pos="0 0 0" axis="1 0 0" range="-2.0944 0.174533" actuatorfrcrange="-1000000 1000000"/>
+          <geom name="L_forearm_collision" pos="0.0018782 -0.0292571 -4.01964" quat="1 0 -3.47386e-11 0" type="mesh" mesh="L_forearm"/>
+          <body name="L_hand" pos="0.0444275 -0.0400143 -0.281903" quat="0 1 0 0">
+            <inertial pos="0.0276707 0.0282138 0.0630869" quat="0.963141 -0.187289 0.178891 0.072668" mass="0.39981" diaginertia="0.00105872 0.000917332 0.000307705"/>
+            <joint name="L_hand_joint" pos="0 0 0" axis="0 0 1" range="-3.14159 3.14159" actuatorfrcrange="-1000000 1000000"/>
+            <geom name="L_hand_collision" pos="-4.88107e-05 3.07731e-09 4.00006" quat="0 1 0 -3.47386e-11" type="mesh" mesh="L_hand"/>
+          </body>
+        </body>
+      </body>
+      <body name="head" pos="0.00012209 -6e-07 0.616999">
+        <inertial pos="-0.000140513 -0.0215 0.0454446" quat="0.425264 0.905043 0.00574385 -0.00373813" mass="4.92456" diaginertia="0.0316976 0.0301778 0.0191567"/>
+        <joint name="Head_joint" pos="0 0 0" axis="0 0 1" range="-1.5708 1.5708" actuatorfrcrange="-1000000 1000000"/>
+        <geom name="head_collision" pos="-0.00012209 3.23451e-09 -4" quat="1 0 -3.47385e-11 0" type="mesh" mesh="head"/>
+      </body>
+    </body>
+
+
+  </body>
+  </worldbody>
+  <contact>
+    <!-- 禁用盆骨和大腿之间的碰撞 -->
+    <exclude body1="EB" body2="EL_hip" />
+    <exclude body1="EB" body2="ER_hip" />
+    <!-- 禁用身体和盆骨之间的碰撞 -->
+    <exclude body1="EB" body2="body"/>
+
+    <!-- 禁用大腿和小腿之间的碰撞 -->
+    <exclude body1="EL_hip" body2="EL_knee" />
+    <exclude body1="ER_hip" body2="ER_knee" />
+    
+    <!-- 禁用小腿和脚之间的碰撞 -->
+    <exclude body1="EL_knee" body2="EL_ankle" />
+    <exclude body1="ER_knee" body2="ER_ankle" />
+    
+    <!-- 禁用身体和大臂之间的碰撞 -->
+    <exclude body1="body" body2="L_arm" />
+    <exclude body1="body" body2="R_arm" />
+        
+    <!-- 禁用身体和头之间的碰撞 -->
+    <exclude body1="body" body2="head"/>
+    
+    <!-- 禁用大臂和小臂之间的碰撞 -->
+    <exclude body1="L_arm" body2="L_forearm" />
+    <exclude body1="R_arm" body2="R_forearm" />
+    
+    <!-- 禁用小臂和手之间的碰撞 -->
+    <exclude body1="L_forearm" body2="L_hand"/>
+    <exclude body1="R_forearm" body2="R_hand"/>
+  </contact>
+    <actuator>
+        <!-- position controllers -->
+        <position name='pos_EL_hip_joint' joint="EL_hip_joint" kp='5000' forcelimited="true" forcerange="-250 250"/>
+        <position name='pos_EL_knee_joint' joint="EL_knee_joint" kp='2000' forcelimited="true" forcerange="-250 250"/>
+        <position name='pos_EL_ankle_joint' joint="EL_ankle_joint" kp='2000' forcelimited="true" forcerange="-250 250"/>
+        <position name='pos_ER_hip_joint' joint="ER_hip_joint" kp='5000' forcelimited="true" forcerange="-250 250"/>
+        <position name='pos_ER_knee_joint' joint="ER_knee_joint" kp='2000' forcelimited="true" forcerange="-250 250"/>
+        <position name='pos_ER_ankle_joint' joint="ER_ankle_joint" kp='2000' forcelimited="true" forcerange="-250 250"/>     
+        <!-- The position controllers of upper body joint -->
+        <position name='pos_torso_joint' joint="torso_joint" kp='2000' forcelimited="true" forcerange="-200 200"/> \
+        <position name='pos_RS_joint' joint="RS_joint" kp='2000' forcelimited="true" forcerange="-200 200"/> 
+        <position name='pos_R_elbow_joint' joint="R_elbow_joint" kp='2000' forcelimited="true" forcerange="-200 200"/> 
+        <position name='pos_R_hand_joint' joint="R_hand_joint" kp='500' forcelimited="true" forcerange="-200 200"/> 
+        <position name='pos_LS_joint' joint="LS_joint" kp='2000' forcelimited="true" forcerange="-200 200"/> 
+        <position name='pos_L_elbow_joint' joint="L_elbow_joint" kp='2000' forcelimited="true" forcerange="-200 200"/> 
+        <position name='pos_L_hand_joint' joint="L_hand_joint" kp='500' forcelimited="true" forcerange="-200 200"/> 
+        <position name='pos_Head_joint' joint="Head_joint" kp='2000' forcelimited="true" forcerange="-200 200"/> 
+        <!--velocity controllers-->
+        <velocity name='vel_EL_hip_joint' joint="EL_hip_joint" kv='100' forcelimited="true" forcerange="-250 250"/>
+        <velocity name='vel_EL_knee_joint' joint="EL_knee_joint" kv='50'  forcelimited="true" forcerange="-250 250"/>
+        <velocity name='vel_EL_ankle_joint' joint="EL_ankle_joint" kv='2'  forcelimited="true" forcerange="-250 250"/>
+        <velocity name='vel_ER_hip_joint' joint="ER_hip_joint" kv='100' forcelimited="true" forcerange="-250 250"/>
+        <velocity name='vel_ER_knee_joint' joint="ER_knee_joint" kv='50'  forcelimited="true" forcerange="-250 250"/>
+        <velocity name='vel_ER_ankle_joint' joint="ER_ankle_joint" kv='2'  forcelimited="true" forcerange="-250 250"/>  
+        <velocity name='vel_Head_joint' joint="Head_joint" kv='2'  forcelimited="true" forcerange="-250 250"/>   
+        <!-- The velocity controllers of upper body joint -->
+        <velocity name='vel_torso_joint' joint="torso_joint" kv='2' forcelimited="true" forcerange="-200 200"/> \
+        <velocity name='vel_RS_joint' joint="RS_joint" kv='2' forcelimited="true" forcerange="-200 200"/> 
+        <velocity name='vel_R_elbow_joint' joint="R_elbow_joint" kv='2' forcelimited="true" forcerange="-200 200"/> 
+        <!-- <velocity name='vel_R_hand_joint' joint="R_hand_joint" kv='20' forcelimited="true" forcerange="-2000 2000"/>  -->
+        <velocity name='vel_LS_joint' joint="LS_joint" kv='2' forcelimited="true" forcerange="-200 200"/> 
+        <velocity name='vel_L_elbow_joint' joint="L_elbow_joint" kv='2' forcelimited="true" forcerange="-200 200"/> 
+        <!-- <velocity name='vel_L_hand_joint' joint="L_hand_joint" kv='2' forcelimited="true" forcerange="-200 200"/>  -->
+
+        <!--torque controllers-->
+        <motor name='trq_EL_hip_joint' joint="EL_hip_joint" gear='1' forcelimited="true" forcerange="-500 500"/>
+        <motor name='trq_EL_knee_joint' joint="EL_knee_joint" gear='1' forcelimited="true" forcerange="-500 500"/>
+        <motor name='trq_EL_ankle_joint' joint="EL_ankle_joint" gear='1' forcelimited="true" forcerange="-500 500"/>
+        <motor name='trq_ER_hip_joint' joint="ER_hip_joint" gear='1' forcelimited="true" forcerange="-500 500"/>
+        <motor name='trq_ER_knee_joint' joint="ER_knee_joint" gear='1' forcelimited="true" forcerange="-500 500"/>
+        <motor name='trq_ER_ankle_joint' joint="ER_ankle_joint" gear='1' forcelimited="true" forcerange="-500 500"/>
+        <!-- The torque controllers of Upper body joint -->
+        <!-- <motor name='trq_torso_joint' joint="torso_joint" gear='1' forcelimited="true" forcerange="-200 200"/>
+        <motor name='trq_RS_joint' joint="RS_joint" gear='1' forcelimited="true" forcerange="-200 200"/>
+        <motor name='trq_R_elbow_joint' joint="R_elbow_joint" gear='1' forcelimited="true" forcerange="-200 200"/> -->
+        <!-- <motor name='trq_R_hand_joint' joint="R_hand_joint" gear='1' forcelimited="true" forcerange="-200 200"/> -->
+        <!-- <motor name='trq_LS_joint' joint="LS_joint" gear='1' forcelimited="true" forcerange="-200 200"/>
+        <motor name='trq_L_elbow_joint' joint="L_elbow_joint" gear='1' forcelimited="true" forcerange="-200 200"/> -->
+        <!-- <motor name='trq_L_hand_joint' joint="L_hand_joint" gear='1' forcelimited="true" forcerange="-200 200"/> -->
+    </actuator>
+
+    <sensor>
+        <!--joint position sensors-->
+
+        <jointpos  name="pos_EL_hip_joint" joint="EL_hip_joint"/>
+        <jointpos  name="pos_EL_knee_joint" joint="EL_knee_joint"/>
+        <jointpos  name="pos_EL_ankle_joint" joint="EL_ankle_joint"/>
+        <jointpos  name="pos_ER_hip_joint" joint="ER_hip_joint"/>
+        <jointpos  name="pos_ER_knee_joint" joint="ER_knee_joint"/>
+        <jointpos  name="pos_ER_ankle_joint" joint="ER_ankle_joint"/>
+        <!-- <jointpos  name="pos_long_link_joint_y" joint="long_link_joint_y"/> -->
+        <!--joint velocity sensors-->
+
+        <jointvel  name="vel_EL_hip_joint" joint="EL_hip_joint"/>
+        <jointvel  name="vel_EL_knee_joint" joint="EL_knee_joint"/>
+        <jointvel  name="vel_EL_ankle_joint" joint="EL_ankle_joint"/>
+        <jointvel  name="vel_ER_hip_joint" joint="ER_hip_joint"/>
+        <jointvel  name="vel_ER_knee_joint" joint="ER_knee_joint"/>
+        <jointvel  name="vel_ER_ankle_joint" joint="ER_ankle_joint"/>
+
+        <!--actuator torque sensors, note that these sensors are not for joints -->
+
+
+        <!--actuator torque sensors, note that these sensors are not for joints -->
+
+        <jointactuatorfrc  name="frc_EL_hip_joint" joint="EL_hip_joint"/>
+        <jointactuatorfrc  name="frc_EL_knee_joint" joint="EL_knee_joint"/>
+        <jointactuatorfrc  name="frc_EL_ankle_joint" joint="EL_ankle_joint"/>
+        <jointactuatorfrc  name="frc_ER_hip_joint" joint="ER_hip_joint"/>
+        <jointactuatorfrc  name="frc_ER_knee_joint" joint="ER_knee_joint"/>
+        <jointactuatorfrc  name="frc_ER_ankle_joint" joint="ER_ankle_joint"/>
+
+    </sensor>
+
+
+</mujoco>

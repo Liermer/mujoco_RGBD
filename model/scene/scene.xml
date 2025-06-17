@@ -1,0 +1,174 @@
+<mujoco model="exoskeleton scene">
+  <option gravity="0 0 -9.81" />
+  <include file="exoskeleton.xml"/>
+  <size nconmax="200" njmax="200" nstack="500000"/>
+  <statistic center="0 0 1" extent="1.8"/>
+
+  <visual>
+    <headlight diffuse="0.6 0.6 0.6" ambient="0.3 0.3 0.3" specular="0 0 0"/>
+    <rgba haze="0.15 0.25 0.35 1"/>
+    <global azimuth="160" elevation="-20"/>
+  </visual>
+
+  <asset>
+    <texture type="skybox" builtin="gradient" rgb1="0.3 0.5 0.7" rgb2="0 0 0" width="512" height="3072"/>
+    <texture type="2d" name="groundplane" builtin="checker" mark="edge" rgb1="0.2 0.3 0.4" rgb2="0.1 0.2 0.3"
+      markrgb="0.8 0.8 0.8" width="300" height="300"/>
+    <material name="groundplane" texture="groundplane" texuniform="true" texrepeat="5 5" reflectance="0.2"/>
+    <mesh name="slope" file="./meshes/slope.stl" scale="0.002 0.002 0.00124523"/>
+  </asset>
+
+  <worldbody>
+    <light pos="0 0 3.5" dir="0 0 -1" directional="true"/>
+    <!-- 添加 friction 属性来增加地板的摩擦力 -->
+    <!-- 第一个地面 -->
+    <geom name="floor1" pos="0 0 0" size="10 9 0.05" type="plane" material="groundplane" friction="0.1 0.1 0.1"/>
+
+    <!-- 添加斜坡地形 -->
+     <body name="slope_body" pos="5 -3 -0.15" euler="0 0 -1.6">
+        <geom name="slope_geom" type="mesh" mesh="slope" material="groundplane" condim="3" friction="0.1 0.1 0.1"/>
+    </body>
+
+    <body name="staircase" pos="0 0 0" quat="0.7071 0 0 0">
+      <!-- 定义楼梯的每一级台阶 -->
+      <body name="step1" pos="0 -0.25 0.075">
+          <geom name="step1_geom" type="box" size="0.8 0.125 0.075" rgba="0.529 0.808 0.922 1" contype="1" conaffinity="1"/>
+      </body>
+      <body name="step2" pos="0 -0.5 0.225">
+          <geom name="step2_geom" type="box" size="0.8 0.125 0.075" rgba="0.529 0.808 0.922 1" contype="1" conaffinity="1"/>
+      </body>
+      <body name="step3" pos="0 -0.75 0.375">
+          <geom name="step3_geom" type="box" size="0.8 0.125 0.075" rgba="0.529 0.808 0.922  1" contype="1" conaffinity="1"/>
+      </body>
+      <body name="step4" pos="0 -1 0.525">
+          <geom name="step4_geom" type="box" size="0.8 0.125 0.075" rgba="0.529 0.808 0.922  1" contype="1" conaffinity="1"/>
+      </body>
+      <body name="step5" pos="0 -1.25 0.675">
+          <geom name="step5_geom" type="box" size="0.8 0.125 0.075" rgba="0.529 0.808 0.922  1" contype="1" conaffinity="1"/>
+      </body>
+      <body name="step6" pos="0 -1.5 0.825">
+          <geom name="step6_geom" type="box" size="0.8 0.125 0.075" rgba="0.529 0.808 0.922  1" contype="1" conaffinity="1"/>
+      </body>
+      <body name="step7" pos="0 -1.75 0.975">
+          <geom name="step7_geom" type="box" size="0.8 0.125 0.075" rgba="0.529 0.808 0.922  1" contype="1" conaffinity="1"/>
+      </body>
+      <body name="step8" pos="0 -2.875 1.125">
+          <geom name="step8_geom" type="box" size="0.8 1 0.075" rgba="0.529 0.808 0.922  1" contype="1" conaffinity="1"/>
+      </body>
+      <body name="step9" pos="0 -4 0.975">
+          <geom name="step9_geom" type="box" size="0.8 0.125 0.075" rgba="0.529 0.808 0.922  1" contype="1" conaffinity="1"/>
+      </body>
+      <body name="step10" pos="0 -4.25 0.825">
+          <geom name="step10_geom" type="box" size="0.8 0.125 0.075" rgba="0.529 0.808 0.922  1" contype="1" conaffinity="1"/>
+      </body>
+      <body name="step11" pos="0 -4.5 0.675">
+          <geom name="step11_geom" type="box" size="0.8 0.125 0.075" rgba="0.529 0.808 0.922  1" contype="1" conaffinity="1"/>
+      </body>
+      <body name="step12" pos="0 -4.75 0.525">
+          <geom name="step12_geom" type="box" size="0.8 0.125 0.075" rgba="0.529 0.808 0.922  1" contype="1" conaffinity="1"/>
+      </body>
+      <body name="step13" pos="0 -5 0.375">
+          <geom name="step13_geom" type="box" size="0.8 0.125 0.075" rgba="0.529 0.808 0.922  1" contype="1" conaffinity="1"/>
+      </body>
+      <body name="step14" pos="0 -5.25 0.225">
+          <geom name="step14_geom" type="box" size="0.8 0.125 0.075" rgba="0.529 0.808 0.922  1" contype="1" conaffinity="1"/>
+      </body>
+      <body name="step15" pos="0 -5.5 0.075">
+          <geom name="step15_geom" type="box" size="0.8 0.125 0.075" rgba="0.529 0.808 0.922  1" contype="1" conaffinity="1"/>
+      </body>
+
+      左侧扶手 - 调整立杆位置和高度
+      <body name="left_handrail" pos="0 0 0">
+          <!-- 竖直立杆 - 调整位置和高度 -->
+          <!-- <geom name="left_handrail_post1" type="cylinder" size="0.03" fromto="0.8 -0.25 0.075 0.8 -0.25 1.075" rgba="0.8 0.8 0.8 1"/>
+          <geom name="left_handrail_post2" type="cylinder" size="0.03" fromto="0.8 -0.5 0.225 0.8 -0.5 1.225" rgba="0.8 0.8 0.8 1"/>
+          <geom name="left_handrail_post3" type="cylinder" size="0.03" fromto="0.8 -0.75 0.375 0.8 -0.75 1.375" rgba="0.8 0.8 0.8 1"/>
+          <geom name="left_handrail_post4" type="cylinder" size="0.03" fromto="0.8 -1 0.525 0.8 -1 1.525" rgba="0.8 0.8 0.8 1"/>
+          <geom name="left_handrail_post5" type="cylinder" size="0.03" fromto="0.8 -1.25 0.675 0.8 -1.25 1.675" rgba="0.8 0.8 0.8 1"/>
+          <geom name="left_handrail_post6" type="cylinder" size="0.03" fromto="0.8 -1.5 0.825 0.8 -1.5 1.825" rgba="0.8 0.8 0.8 1"/>
+          <geom name="left_handrail_post7" type="cylinder" size="0.03" fromto="0.8 -1.75 0.975 0.8 -1.75 1.975" rgba="0.8 0.8 0.8 1"/> -->
+          
+          <!-- 平台的扶手 -->
+          <!-- <geom name="left_handrail_post8" type="cylinder" size="0.03" fromto="0.8 -2.45 1.125 0.8 -2.45 2.125" rgba="0.8 0.8 0.8 1"/>
+          <geom name="left_handrail_post9" type="cylinder" size="0.03" fromto="0.8 -3.2 1.125 0.8 -3.2 2.125" rgba="0.8 0.8 0.8 1"/>
+          <geom name="left_handrail_post10" type="cylinder" size="0.03" fromto="0.8 -3.85 1.125 0.8 -3.85 2.125" rgba="0.8 0.8 0.8 1"/> -->
+          
+          <!-- 下行楼梯的扶手 -->
+          <!-- <geom name="left_handrail_post11" type="cylinder" size="0.03" fromto="0.8 -4.25 0.975 0.8 -4.25 1.975" rgba="0.8 0.8 0.8 1"/>
+          <geom name="left_handrail_post12" type="cylinder" size="0.03" fromto="0.8 -4.5 0.825 0.8 -4.5 1.825" rgba="0.8 0.8 0.8 1"/>
+          <geom name="left_handrail_post13" type="cylinder" size="0.03" fromto="0.8 -4.75 0.675 0.8 -4.75 1.675" rgba="0.8 0.8 0.8 1"/>
+          <geom name="left_handrail_post14" type="cylinder" size="0.03" fromto="0.8 -5 0.525 0.8 -5 1.525" rgba="0.8 0.8 0.8 1"/>
+          <geom name="left_handrail_post15" type="cylinder" size="0.03" fromto="0.8 -5.25 0.375 0.8 -5.25 1.375" rgba="0.8 0.8 0.8 1"/>
+          <geom name="left_handrail_post16" type="cylinder" size="0.03" fromto="0.8 -5.5 0.225 0.8 -5.5 1.225" rgba="0.8 0.8 0.8 1"/> -->
+          
+          <!-- 斜向连杆 - 连接各立杆顶部，调整角度 -->
+          <!-- <geom name="left_handrail_top1" type="cylinder" size="0.02" fromto="0.8 -0.25 1.075 0.8 -0.5 1.225" rgba="0.9 0.9 0.9 1"/>
+          <geom name="left_handrail_top2" type="cylinder" size="0.02" fromto="0.8 -0.5 1.225 0.8 -0.75 1.375" rgba="0.9 0.9 0.9 1"/>
+          <geom name="left_handrail_top3" type="cylinder" size="0.02" fromto="0.8 -0.75 1.375 0.8 -1 1.525" rgba="0.9 0.9 0.9 1"/>
+          <geom name="left_handrail_top4" type="cylinder" size="0.02" fromto="0.8 -1 1.525 0.8 -1.25 1.675" rgba="0.9 0.9 0.9 1"/>
+          <geom name="left_handrail_top5" type="cylinder" size="0.02" fromto="0.8 -1.25 1.675 0.8 -1.5 1.825" rgba="0.9 0.9 0.9 1"/>
+          <geom name="left_handrail_top6" type="cylinder" size="0.02" fromto="0.8 -1.5 1.825 0.8 -1.75 1.975" rgba="0.9 0.9 0.9 1"/> -->
+          
+          <!-- 平台扶手连接 -->
+          <!-- <geom name="left_handrail_top7" type="cylinder" size="0.02" fromto="0.8 -1.75 1.975 0.8 -2.45 2.125" rgba="0.9 0.9 0.9 1"/>
+          <geom name="left_handrail_top8" type="cylinder" size="0.02" fromto="0.8 -2.45 2.125 0.8 -3.2 2.125" rgba="0.9 0.9 0.9 1"/>
+          <geom name="left_handrail_top9" type="cylinder" size="0.02" fromto="0.8 -3.2 2.125 0.8 -3.85 2.125" rgba="0.9 0.9 0.9 1"/> -->
+          
+          <!-- 下行楼梯扶手连接 -->
+          <!-- <geom name="left_handrail_top10" type="cylinder" size="0.02" fromto="0.8 -3.85 2.125 0.8 -4.25 1.975" rgba="0.9 0.9 0.9 1"/>
+          <geom name="left_handrail_top11" type="cylinder" size="0.02" fromto="0.8 -4.25 1.975 0.8 -4.5 1.825" rgba="0.9 0.9 0.9 1"/>
+          <geom name="left_handrail_top12" type="cylinder" size="0.02" fromto="0.8 -4.5 1.825 0.8 -4.75 1.675" rgba="0.9 0.9 0.9 1"/>
+          <geom name="left_handrail_top13" type="cylinder" size="0.02" fromto="0.8 -4.75 1.675 0.8 -5 1.525" rgba="0.9 0.9 0.9 1"/>
+          <geom name="left_handrail_top14" type="cylinder" size="0.02" fromto="0.8 -5 1.525 0.8 -5.25 1.375" rgba="0.9 0.9 0.9 1"/>
+          <geom name="left_handrail_top15" type="cylinder" size="0.02" fromto="0.8 -5.25 1.375 0.8 -5.5 1.225" rgba="0.9 0.9 0.9 1"/> -->
+      </body>
+
+      <!-- 右侧扶手 - 调整立杆位置和高度 -->
+      <body name="right_handrail" pos="0 0 0">
+          <!-- 竖直立杆 - 调整位置和高度 -->
+          <!-- <geom name="right_handrail_post1" type="cylinder" size="0.03" fromto="-0.8 -0.25 0.075 -0.8 -0.25 1.075" rgba="0.8 0.8 0.8 1"/>
+          <geom name="right_handrail_post2" type="cylinder" size="0.03" fromto="-0.8 -0.5 0.225 -0.8 -0.5 1.225" rgba="0.8 0.8 0.8 1"/>
+          <geom name="right_handrail_post3" type="cylinder" size="0.03" fromto="-0.8 -0.75 0.375 -0.8 -0.75 1.375" rgba="0.8 0.8 0.8 1"/>
+          <geom name="right_handrail_post4" type="cylinder" size="0.03" fromto="-0.8 -1 0.525 -0.8 -1 1.525" rgba="0.8 0.8 0.8 1"/>
+          <geom name="right_handrail_post5" type="cylinder" size="0.03" fromto="-0.8 -1.25 0.675 -0.8 -1.25 1.675" rgba="0.8 0.8 0.8 1"/>
+          <geom name="right_handrail_post6" type="cylinder" size="0.03" fromto="-0.8 -1.5 0.825 -0.8 -1.5 1.825" rgba="0.8 0.8 0.8 1"/>
+          <geom name="right_handrail_post7" type="cylinder" size="0.03" fromto="-0.8 -1.75 0.975 -0.8 -1.75 1.975" rgba="0.8 0.8 0.8 1"/> -->
+          
+          <!-- 平台的扶手 -->
+          <!-- <geom name="right_handrail_post8" type="cylinder" size="0.03" fromto="-0.8 -2.45 1.125 -0.8 -2.45 2.125" rgba="0.8 0.8 0.8 1"/>
+          <geom name="right_handrail_post9" type="cylinder" size="0.03" fromto="-0.8 -3.2 1.125 -0.8 -3.2 2.125" rgba="0.8 0.8 0.8 1"/>
+          <geom name="right_handrail_post10" type="cylinder" size="0.03" fromto="-0.8 -3.85 1.125 -0.8 -3.85 2.125" rgba="0.8 0.8 0.8 1"/> -->
+          
+          <!-- 下行楼梯的扶手 -->
+          <!-- <geom name="right_handrail_post11" type="cylinder" size="0.03" fromto="-0.8 -4.25 0.975 -0.8 -4.25 1.975" rgba="0.8 0.8 0.8 1"/>
+          <geom name="right_handrail_post12" type="cylinder" size="0.03" fromto="-0.8 -4.5 0.825 -0.8 -4.5 1.825" rgba="0.8 0.8 0.8 1"/>
+          <geom name="right_handrail_post13" type="cylinder" size="0.03" fromto="-0.8 -4.75 0.675 -0.8 -4.75 1.675" rgba="0.8 0.8 0.8 1"/>
+          <geom name="right_handrail_post14" type="cylinder" size="0.03" fromto="-0.8 -5 0.525 -0.8 -5 1.525" rgba="0.8 0.8 0.8 1"/>
+          <geom name="right_handrail_post15" type="cylinder" size="0.03" fromto="-0.8 -5.25 0.375 -0.8 -5.25 1.375" rgba="0.8 0.8 0.8 1"/>
+          <geom name="right_handrail_post16" type="cylinder" size="0.03" fromto="-0.8 -5.5 0.225 -0.8 -5.5 1.225" rgba="0.8 0.8 0.8 1"/> -->
+          
+          <!-- 斜向连杆 - 连接各立杆顶部，调整角度 -->
+          <!-- <geom name="right_handrail_top1" type="cylinder" size="0.02" fromto="-0.8 -0.25 1.075 -0.8 -0.5 1.225" rgba="0.9 0.9 0.9 1"/>
+          <geom name="right_handrail_top2" type="cylinder" size="0.02" fromto="-0.8 -0.5 1.225 -0.8 -0.75 1.375" rgba="0.9 0.9 0.9 1"/>
+          <geom name="right_handrail_top3" type="cylinder" size="0.02" fromto="-0.8 -0.75 1.375 -0.8 -1 1.525" rgba="0.9 0.9 0.9 1"/>
+          <geom name="right_handrail_top4" type="cylinder" size="0.02" fromto="-0.8 -1 1.525 -0.8 -1.25 1.675" rgba="0.9 0.9 0.9 1"/>
+          <geom name="right_handrail_top5" type="cylinder" size="0.02" fromto="-0.8 -1.25 1.675 -0.8 -1.5 1.825" rgba="0.9 0.9 0.9 1"/>
+          <geom name="right_handrail_top6" type="cylinder" size="0.02" fromto="-0.8 -1.5 1.825 -0.8 -1.75 1.975" rgba="0.9 0.9 0.9 1"/> -->
+          
+          <!-- 平台扶手连接 -->
+          <!-- <geom name="right_handrail_top7" type="cylinder" size="0.02" fromto="-0.8 -1.75 1.975 -0.8 -2.45 2.125" rgba="0.9 0.9 0.9 1"/>
+          <geom name="right_handrail_top8" type="cylinder" size="0.02" fromto="-0.8 -2.45 2.125 -0.8 -3.2 2.125" rgba="0.9 0.9 0.9 1"/>
+          <geom name="right_handrail_top9" type="cylinder" size="0.02" fromto="-0.8 -3.2 2.125 -0.8 -3.85 2.125" rgba="0.9 0.9 0.9 1"/> -->
+          
+          <!-- 下行楼梯扶手连接 -->
+          <!-- <geom name="right_handrail_top10" type="cylinder" size="0.02" fromto="-0.8 -3.85 2.125 -0.8 -4.25 1.975" rgba="0.9 0.9 0.9 1"/>
+          <geom name="right_handrail_top11" type="cylinder" size="0.02" fromto="-0.8 -4.25 1.975 -0.8 -4.5 1.825" rgba="0.9 0.9 0.9 1"/>
+          <geom name="right_handrail_top12" type="cylinder" size="0.02" fromto="-0.8 -4.5 1.825 -0.8 -4.75 1.675" rgba="0.9 0.9 0.9 1"/>
+          <geom name="right_handrail_top13" type="cylinder" size="0.02" fromto="-0.8 -4.75 1.675 -0.8 -5 1.525" rgba="0.9 0.9 0.9 1"/>
+          <geom name="right_handrail_top14" type="cylinder" size="0.02" fromto="-0.8 -5 1.525 -0.8 -5.25 1.375" rgba="0.9 0.9 0.9 1"/>
+          <geom name="right_handrail_top15" type="cylinder" size="0.02" fromto="-0.8 -5.25 1.375 -0.8 -5.5 1.225" rgba="0.9 0.9 0.9 1"/> -->
+      </body>
+    </body>
+
+  </worldbody>
+</mujoco>

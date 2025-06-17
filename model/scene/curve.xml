@@ -1,0 +1,19 @@
+<mujoco model="go2 scene">
+
+
+  <statistic center="0 0 0.1" extent="0.8" />
+
+  <visual>
+    <headlight diffuse="0.6 0.6 0.6" ambient="0.3 0.3 0.3" specular="0 0 0" />
+    <rgba haze="0.15 0.25 0.35 1" />
+    <global azimuth="-130" elevation="-20" />
+  </visual>
+
+  <asset>
+
+  <hfield name="curve_hfield" size="5.0 2.5 1 0.2" file="./height_field_curve.png" /></asset>
+
+  <worldbody>
+
+  <geom type="hfield" hfield="curve_hfield" pos="8 19 -1" quat="1.0 0.0 0.0 0.0" /></worldbody>
+</mujoco>
