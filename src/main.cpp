@@ -8,7 +8,13 @@
 #include <algorithm>
 #include <chrono>
 #include <cstdio>
+#include <cmath> // 用于 sqrt
+#include <limits> // 用于 std::numeric_limits
+
 #include "Pre_process.hpp"
+#include <pcl/point_cloud.h>
+#include <pcl/point_types.h>
+
 
 // ---------- 全局 ----------
 mjModel* m = nullptr;
@@ -67,11 +73,6 @@ void convert_depth_to_grayscale(unsigned char* grayscale_buf, const float* depth
             if (depth_buf[i] > max_val) max_val = depth_buf[i];
         }
     }
-    
-    static int frame_count = 0;
-    // if (frame_count++ % 100 == 0) {
-    //     printf("Depth range: min=%.3f, max=%.3f\n", min_val, max_val);
-    // }
 
     float range = max_val - min_val;
     if (range < 1e-5) {
@@ -93,74 +94,97 @@ void convert_depth_to_grayscale(unsigned char* grayscale_buf, const float* depth
         grayscale_buf[3*i + 2] = gray;
     }
 }
-struct Point3D {
-    float x, y, z;
-};
+
+// ---------- 辅助函数：将深度图转换为PCL点云 (已修正) ----------
+// 这个函数现在将MuJoCo的深度图和相机位姿转换为世界坐标系下的点云
 void convertDepthToPointCloud(
     const float* depth_buf, int width, int height,
-    float fx, float fy, float cx, float cy,
+    const mjvCamera* cam, const mjrContext* con,
     std::shared_ptr<pcl::PointCloud<pcl::PointXYZ>>& point_cloud)
 {
-    // point_cloud.clear();
     point_cloud = std::make_shared<pcl::PointCloud<pcl::PointXYZ>>();
+    point_cloud->width = width;
+    point_cloud->height = height;
+    point_cloud->is_dense = false;
+    point_cloud->points.resize(width * height);
 
-    point_cloud->reserve(width * height);
+    // 获取视场角和裁剪面距离
+    float fovy = m->vis.global.fovy;
+    float znear = m->vis.map.znear * m->stat.extent;
+    float zfar = m->vis.map.zfar * m->stat.extent;
 
-    for (int v = 0; v < height; ++v) {
-        for (int u = 0; u < width; ++u) {
-            float depth_value = depth_buf[v * width + u];
+    // 获取相机在世界坐标系下的位姿
+    mjtNum cam_pos[3];
+    mjtNum cam_mat[9];
+    mju_copy3(cam_pos, &d->cam_xpos[cam->fixedcamid * 3]);
+    mju_copy(cam_mat, &d->cam_xmat[cam->fixedcamid * 9], 9);
 
-            // 深度值 < 1.0f 通常表示有效的物体距离，
-            // >= 1.0f 表示背景或超出远裁剪平面的点，我们将其忽略。
-            if (depth_value < 1.0f) {
-                pcl::PointXYZ point;
-                point.z = depth_value;
-                point.x = (static_cast<float>(u) - cx) * point.z / fx;
-                point.y = (static_cast<float>(v) - cy) * point.z / fy;
-                
-                point_cloud->push_back(point);
+    // 遍历每一个像素
+    for (int r = 0; r < height; ++r) {
+        for (int c = 0; c < width; ++c) {
+            // 1. 从深度缓冲区获取归一化的深度值 (0-1)
+            float depth = depth_buf[r * width + c];
+
+            // 如果深度值是1.0, 表示是背景或超出远裁剪面, 跳过
+            if (depth >= 1.0f) {
+                point_cloud->at(c, r).x = std::numeric_limits<float>::quiet_NaN();
+                point_cloud->at(c, r).y = std::numeric_limits<float>::quiet_NaN();
+                point_cloud->at(c, r).z = std::numeric_limits<float>::quiet_NaN();
+                continue;
             }
+
+            // 2. 将归一化的深度值转换回相机坐标系下的线性Z值
+            float z_cam = -zfar * znear / (depth * (zfar - znear) - zfar);
+
+            // 3. 将像素坐标(c, r)转换为相机坐标系下的X和Y值
+            float aspect = (float)width / (float)height;
+            float tan_fovy_half = tan(fovy * M_PI / 360.0);
+            float y_cam =  -tan_fovy_half * z_cam * (2.0f * r / (height-1) - 1.0f);
+            float x_cam = aspect * tan_fovy_half * z_cam * (2.0f * c / (width-1) - 1.0f);
+
+            // 4. 将相机坐标系下的点(x_cam, y_cam, z_cam)转换到世界坐标系
+            mjtNum point_cam[3] = {x_cam, y_cam, z_cam};
+            mjtNum point_world[3];
+            mju_mulMatVec(point_world, cam_mat, point_cam, 3, 3);
+            mju_addTo3(point_world, cam_pos);
+
+            // 5. 存储世界坐标系下的点
+            point_cloud->at(c, r).x = point_world[0];
+            point_cloud->at(c, r).y = point_world[1];
+            point_cloud->at(c, r).z = point_world[2];
         }
     }
 }
 
-// ---------- 改进的辅助函数：绘制覆盖层 ----------
-void draw_overlay(int window_width, int window_height, int corner) {
+
+// ---------- 辅助函数：绘制2D纹理覆盖层 (用于RGB和灰度深度图) ----------
+void draw_texture_overlay(int window_width, int window_height, GLuint tex_id, int corner) {
     mjrRect overlay_rect;
-    GLuint tex_id;
 
     if (corner == 0) { // Top-Right for Depth
         overlay_rect = {window_width - CAM_WIDTH - 20, window_height - CAM_HEIGHT - 20, CAM_WIDTH, CAM_HEIGHT};
-        tex_id = depth_tex_id;
     } else { // Bottom-Right for RGB
         overlay_rect = {window_width - CAM_WIDTH - 20, 20, CAM_WIDTH, CAM_HEIGHT};
-        tex_id = rgb_tex_id;
     }
-    
-    // 使用 glPush/PopAttrib 保存和恢复OpenGL状态，避免干扰3D渲染
-    // glPushAttrib(GL_ENABLE_BIT | GL_PROJECTION_BIT | GL_MODELVIEW_BIT);
+
     glPushAttrib(GL_ENABLE_BIT);
 
     glMatrixMode(GL_PROJECTION);
     glPushMatrix();
     glLoadIdentity();
     glOrtho(0, window_width, 0, window_height, -1, 1);
-    
+
     glMatrixMode(GL_MODELVIEW);
     glPushMatrix();
     glLoadIdentity();
-    
-    // ***** 关键修复：禁用光照和深度测试 *****
+
     glDisable(GL_LIGHTING);
     glDisable(GL_DEPTH_TEST);
-    
+
     glEnable(GL_TEXTURE_2D);
     glBindTexture(GL_TEXTURE_2D, tex_id);
-
-    // 设置纹理的颜色如何与基本颜色混合
-    // GL_REPLACE 会忽略基本颜色，只显示纹理
     glTexEnvi(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_REPLACE);
-    
+
     glColor4f(1.0f, 1.0f, 1.0f, 1.0f);
     glBegin(GL_QUADS);
     glTexCoord2f(1, 1); glVertex2i(overlay_rect.left, overlay_rect.bottom);
@@ -168,14 +192,98 @@ void draw_overlay(int window_width, int window_height, int corner) {
     glTexCoord2f(0, 0); glVertex2i(overlay_rect.left + overlay_rect.width, overlay_rect.bottom + overlay_rect.height);
     glTexCoord2f(1, 0); glVertex2i(overlay_rect.left, overlay_rect.bottom + overlay_rect.height);
     glEnd();
-    
-    // 恢复状态
+
     glMatrixMode(GL_MODELVIEW);
     glPopMatrix();
     glMatrixMode(GL_PROJECTION);
     glPopMatrix();
 
     glPopAttrib();
+}
+
+
+// ---------- 新增辅助函数：根据距离获取颜色（彩虹色谱）----------
+void get_color_from_distance(float& r, float& g, float& b, float distance, float min_dist, float max_dist) {
+    if (min_dist >= max_dist) {
+        r = 0.5f; g = 0.5f; b = 0.5f; // 如果范围无效，则为灰色
+        return;
+    }
+
+    // 将距离归一化到 [0, 1] 范围
+    float normalized_dist = (distance - min_dist) / (max_dist - min_dist);
+    normalized_dist = std::max(0.0f, std::min(1.0f, normalized_dist));
+
+    // 简单的彩虹色谱 (Blue -> Green -> Red)
+    r = 0.0f; g = 0.0f; b = 0.0f;
+    if (normalized_dist < 0.5f) { // Blue -> Green
+        float p = normalized_dist * 2.0f;
+        g = p;
+        b = 1.0f - p;
+    } else { // Green -> Red
+        float p = (normalized_dist - 0.5f) * 2.0f;
+        r = p;
+        g = 1.0f - p;
+    }
+}
+
+// ---------- 新增辅助函数：在左上角绘制点云覆盖层 (已修正) ----------
+// 这个函数现在直接在世界坐标系下渲染点云，与主场景一致
+void draw_point_cloud_overlay(int window_width, int window_height,
+                              mjvScene* main_scn, mjrContext* main_con,
+                              const std::shared_ptr<pcl::PointCloud<pcl::PointXYZ>>& cloud,
+                              float min_dist, float max_dist)
+{
+    if (!cloud || cloud->empty()) {
+        return;
+    }
+
+    // 定义左上角的视口
+    mjrRect overlay_rect = {20, window_height - CAM_HEIGHT - 20, CAM_WIDTH, CAM_HEIGHT};
+
+    // 使用主场景的相机设置，但应用于覆盖层视口
+    mjr_render(overlay_rect, main_scn, main_con);
+
+    // 接下来，在相同的视口和相机设置上，叠加我们的彩色点云
+    glPushAttrib(GL_ALL_ATTRIB_BITS);
+
+    // 切换到覆盖层视口
+    glViewport(overlay_rect.left, overlay_rect.bottom, overlay_rect.width, overlay_rect.height);
+
+    // 禁用光照和纹理，因为我们将手动设置颜色
+    glDisable(GL_LIGHTING);
+    glDisable(GL_TEXTURE_2D);
+    // 启用深度测试
+    glEnable(GL_DEPTH_TEST);
+    glEnable(GL_BLEND);
+    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+
+
+    // 设置点的大小
+    glPointSize(3.0f);
+
+    // 开始绘制点
+    glBegin(GL_POINTS);
+    for (const auto& point : cloud->points) {
+        if (pcl::isFinite(point)) { // 检查是否是有效点
+            // 计算点到主相机(自由相机)的距离
+            float dx = point.x - main_scn->camera[0].pos[0];
+            float dy = point.y - main_scn->camera[0].pos[1];
+            float dz = point.z - main_scn->camera[0].pos[2];
+            float dist_to_cam = sqrt(dx*dx + dy*dy + dz*dz);
+
+            float r, g, b;
+            get_color_from_distance(r, g, b, dist_to_cam, min_dist, max_dist);
+            glColor4f(r, g, b, 0.9f); // 设置颜色和一点透明度
+            glVertex3f(point.x, point.y, point.z);
+        }
+    }
+    glEnd();
+
+    // 恢复状态
+    glPopAttrib();
+
+    // 恢复视口到整个窗口
+    glViewport(0, 0, window_width, window_height);
 }
 
 
@@ -210,24 +318,17 @@ void key_cb(GLFWwindow*, int key, int, int action, int){
 }
 
 int main(int argc, char** argv){
-    const char* xml_path = "/home/ziyi/workspace/mujoco_RGBD/model/scene/scene.xml";
+    const char* xml_path = "/home/ziyi/workspace/mujoco_RGBD/model/scene/scene.xml"; // 默认路径
     if (argc > 1) {
         xml_path = argv[1];
+    } else {
+        printf("Usage: ./main <path_to_model.xml>\n");
+        printf("Using default path: %s\n", xml_path);
     }
-    // 计算相机参数
-    const double fovy_deg = 45.0; // 从 XML 中获取
-    const double fovy_rad = fovy_deg * M_PI / 180.0;
-    const float fx = static_cast<float>((CAM_HEIGHT / 2.0) / tan(fovy_rad / 2.0));
-    const float fy = fx;
-    const float cx = CAM_WIDTH / 2.0f;
-    const float cy = CAM_HEIGHT / 2.0f;
 
-    // ---------- 点云 ----------
+    // 初始化点云处理模块
     std::shared_ptr<pcl::PointCloud<pcl::PointXYZ>> pointCloud;
-    Pre_process cloud(pointCloud);
-
-
-
+    Pre_process cloud_processor(pointCloud);
 
     std::cout << "Loading model from: " << xml_path << std::endl;
 
@@ -240,7 +341,7 @@ int main(int argc, char** argv){
     d = mj_makeData(m);
 
     if (!glfwInit()) return -1;
-    GLFWwindow* win = glfwCreateWindow(1200, 900, "MuJoCo Exo with RGB/Depth View", nullptr, nullptr);
+    GLFWwindow* win = glfwCreateWindow(1200, 900, "MuJoCo Simulation with Point Cloud Visualization", nullptr, nullptr);
     if (!win) {
         glfwTerminate();
         return -1;
@@ -260,7 +361,7 @@ int main(int argc, char** argv){
 
     mjv_makeScene(m, &scn, 2000);
     mjr_makeContext(m, &con, mjFONTSCALE_150);
-    
+
     mjv_makeScene(m, &scn_robot, 2000);
     mjr_resizeOffscreen(CAM_WIDTH, CAM_HEIGHT, &con);
     rgb_buffer = new unsigned char[CAM_WIDTH * CAM_HEIGHT * 3];
@@ -297,40 +398,46 @@ int main(int argc, char** argv){
         while(d->time < realtime){
             mj_step(m, d);
         }
-        
+
+        // 1. 从机器人摄像头渲染并获取深度/RGB数据
         mjvCamera cam_robot;
         cam_robot.type = mjCAMERA_FIXED;
         cam_robot.fixedcamid = robot_cam_id;
         mjv_updateScene(m, d, &opt, nullptr, &cam_robot, mjCAT_ALL, &scn_robot);
-        
+
         mjrRect offscreen_vp = {0, 0, CAM_WIDTH, CAM_HEIGHT};
         mjr_setBuffer(mjFB_OFFSCREEN, &con);
         mjr_render(offscreen_vp, &scn_robot, &con);
-        
+
         mjr_readPixels(rgb_buffer, depth_buffer, offscreen_vp, &con);
 
-        // 将深度图转换为点云
-        std::shared_ptr<pcl::PointCloud<pcl::PointXYZ>> pointCloud;
-        convertDepthToPointCloud(depth_buffer, CAM_WIDTH, CAM_HEIGHT, fx, fy, cx, cy, pointCloud);
-        
-        // (可选) 打印一些点云信息来验证
-        // static int frame_count_pc = 0;
-        // if (frame_count_pc++ % 100 == 0 && !pointCloud.empty()) {
-        //     printf("Point cloud generated with %zu points.\n", pointCloud.size());
-        //     printf("First point: (%.3f, %.3f, %.3f)\n", 
-        //            pointCloud[0].x, pointCloud[0].y, pointCloud[0].z);
-        // }
+        // 2. 将深度图转换为世界坐标系下的点云
+        convertDepthToPointCloud(depth_buffer, CAM_WIDTH, CAM_HEIGHT, &cam_robot, &con, pointCloud);
 
-        cloud.pre_process(pointCloud);
+        // 3. 计算点云的最小和最大距离以用于颜色映射
+        float min_dist_raw = 1e6, max_dist_raw = -1e6;
+        if (pointCloud && !pointCloud->empty()) {
+            for (const auto& point : pointCloud->points) {
+                 if (pcl::isFinite(point)) {
+                    float dist_to_origin = sqrt(point.x * point.x + point.y * point.y + point.z * point.z);
+                    if (dist_to_origin < min_dist_raw) min_dist_raw = dist_to_origin;
+                    if (dist_to_origin > max_dist_raw) max_dist_raw = dist_to_origin;
+                }
+            }
+        }
 
-        // 渲染主场景
+        // 4. (可选) 使用您的算法处理点云
+        cloud_processor.pre_process(pointCloud);
+
+        // 5. 渲染主场景
         mjr_setBuffer(mjFB_WINDOW, &con);
         int w, h;
         glfwGetFramebufferSize(win, &w, &h);
         mjrRect main_vp{0, 0, w, h};
         mjv_updateScene(m, d, &opt, nullptr, &cam, mjCAT_ALL, &scn);
         mjr_render(main_vp, &scn, &con);
-        
+
+        // 6. 准备并渲染右侧的2D覆盖图
         convert_depth_to_grayscale(depth_grayscale_buffer, depth_buffer, CAM_WIDTH, CAM_HEIGHT);
         glBindTexture(GL_TEXTURE_2D, depth_tex_id);
         glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, CAM_WIDTH, CAM_HEIGHT, 0, GL_RGB, GL_UNSIGNED_BYTE, depth_grayscale_buffer);
@@ -338,13 +445,17 @@ int main(int argc, char** argv){
         glBindTexture(GL_TEXTURE_2D, rgb_tex_id);
         glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, CAM_WIDTH, CAM_HEIGHT, 0, GL_RGB, GL_UNSIGNED_BYTE, rgb_buffer);
 
-        draw_overlay(w, h, 0); // 0: 右上角，深度图
-        draw_overlay(w, h, 1); // 1: 右下角，彩色图
+        draw_texture_overlay(w, h, depth_tex_id, 0); // 右上角
+        draw_texture_overlay(w, h, rgb_tex_id, 1);   // 右下角
+
+        // 7. 渲染左上角的3D点云覆盖图
+        draw_point_cloud_overlay(w, h, &scn, &con, pointCloud, min_dist_raw, max_dist_raw);
 
         glfwSwapBuffers(win);
         glfwPollEvents();
     }
 
+    // 清理资源
     delete[] rgb_buffer;
     delete[] depth_grayscale_buffer;
     delete[] depth_buffer;
