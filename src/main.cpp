@@ -464,6 +464,12 @@ int main(int argc, char** argv){
         }
 
         // 4. (可选) 使用您的算法处理点云
+        // 输出机器人位置信息用于分析
+        std::cout << "Robot position: [" << d->qpos[0] << ", " << d->qpos[1] << ", " << d->qpos[2] << "]" << std::endl;
+        std::cout << "Camera position: [" << d->cam_xpos[robot_cam_id * 3] << ", " 
+                  << d->cam_xpos[robot_cam_id * 3 + 1] << ", " 
+                  << d->cam_xpos[robot_cam_id * 3 + 2] << "]" << std::endl;
+        
         cloud_processor.pre_process(pointCloud);
 
         // 5. 渲染主场景

@@ -26,7 +26,7 @@ struct StairDetectorConfig {
     double angle_threshold_ = 2.0;
     double cluster_tolerance_ = 0.2;
     int min_cluster_size_ = 50;
-    int max_cluster_size_ = 25000;
+    int max_cluster_size_ = 1000;
     int mean_k_ = 50;
     double stddev_mul_thresh_ = 1.0;
     int k_neighbors_ = 10;

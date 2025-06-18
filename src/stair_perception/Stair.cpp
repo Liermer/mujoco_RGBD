@@ -14,18 +14,27 @@ Stair::Stair(const std::vector<Plane>& planes)
     };
     std::sort(Planes_.begin(), Planes_.end(), compareByX);
 
-    step_height_ = Planes_.front().plane_coefficients_->values[3] 
-                        - Planes_.back().plane_coefficients_->values[3];
+    // 修正楼梯类型判断：使用实际的Z坐标高度差而不是D系数
+    float front_z = Planes_.front().centroid_.z;
+    float back_z = Planes_.back().centroid_.z;
+    step_height_ = front_z - back_z;
+    
+    // 调试信息
+    std::cout << "Stair type analysis:" << std::endl;
+    std::cout << "  Front plane (X=" << Planes_.front().centroid_.x << ") Z: " << front_z << std::endl;
+    std::cout << "  Back plane (X=" << Planes_.back().centroid_.x << ") Z: " << back_z << std::endl;
+    std::cout << "  Height difference (front-back): " << step_height_ << std::endl;
     auto step_height_abs = fabs(step_height_);                    
 
+    // 正确判断楼梯类型：如果前面的平面比后面的高，则为上楼梯
     if(step_height_ > 0){  
-        type_ = 0; // upwards
+        type_ = 0; // upwards - 前面的平面更高
         step_distance_ = Utilities::findAvgXForPointsBelowYThreshold(Planes_.front().cloud_,
                                                                 0.055, 30, true);
         step_length_ = planes.front().length_;
         step_width_ = planes.front().width_;
     } else {  
-        type_ = 1; // downwards
+        type_ = 1; // downwards - 前面的平面更低
         step_distance_ = Utilities::findAvgXForPointsBelowYThreshold(Planes_.front().cloud_,
                                                                 0.055, 30, false);
         step_length_ = planes.back().length_;

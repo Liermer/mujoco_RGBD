@@ -131,8 +131,9 @@ void StairDetector::getPlanes(pcl::PointCloud<pcl::PointXYZ>::Ptr input_cloud) {
     seg.setOptimizeCoefficients(true);
     seg.setModelType(pcl::SACMODEL_PLANE);
     seg.setMethodType(pcl::SAC_RANSAC);
-    // seg.setAxis(Eigen::Vector3f(0.0, 0.0, 1.0)); // Temporarily disable axis constraint
-    // seg.setEpsAngle(Utilities::deg2rad(config_.angle_threshold_)); // Temporarily disable angle constraint
+    // 强制寻找接近水平的平面
+    seg.setAxis(Eigen::Vector3f(0.0, 0.0, 1.0));
+    seg.setEpsAngle(Utilities::deg2rad(config_.angle_threshold_));
     seg.setDistanceThreshold(config_.distance_threshold_);
     seg.setMaxIterations(config_.max_iterations_);
 
@@ -152,6 +153,63 @@ void StairDetector::getPlanes(pcl::PointCloud<pcl::PointXYZ>::Ptr input_cloud) {
         Plane plane(plane_cloud, coefficients);
         if(plane.length_ > 0.2 || plane.width_ > 0.2){
              Planes_.push_back(plane);
+             
+             if(config_.debug_){
+                 std::cout << "Plane " << (Planes_.size()-1) << " detected:" << std::endl;
+                 std::cout << "  - Points: " << plane_cloud->size() << std::endl;
+                 std::cout << "  - Length: " << plane.length_ << std::endl;
+                 std::cout << "  - Width: " << plane.width_ << std::endl;
+                 std::cout << "  - Normal vector: [" << coefficients->values[0] << ", " 
+                           << coefficients->values[1] << ", " << coefficients->values[2] << "]" << std::endl;
+                 std::cout << "  - D coefficient: " << coefficients->values[3] << std::endl;
+                 
+                 // 计算平面中心点
+                 Eigen::Vector4f centroid;
+                 pcl::compute3DCentroid(*plane_cloud, centroid);
+                 std::cout << "  - Centroid: [" << centroid[0] << ", " << centroid[1] << ", " << centroid[2] << "]" << std::endl;
+                 
+                 // 分析点云的Z值分布
+                 float min_z = std::numeric_limits<float>::max();
+                 float max_z = std::numeric_limits<float>::lowest();
+                 for(const auto& point : plane_cloud->points) {
+                     if(pcl::isFinite(point)) {
+                         min_z = std::min(min_z, point.z);
+                         max_z = std::max(max_z, point.z);
+                     }
+                 }
+                 std::cout << "  - Z range: [" << min_z << " to " << max_z << "], span: " << (max_z - min_z) << std::endl;
+                 
+                 // 计算平面距离原点的距离
+                 float dist_to_origin = abs(coefficients->values[3]) / 
+                                       sqrt(coefficients->values[0]*coefficients->values[0] + 
+                                            coefficients->values[1]*coefficients->values[1] + 
+                                            coefficients->values[2]*coefficients->values[2]);
+                 std::cout << "  - Distance to origin: " << dist_to_origin << std::endl;
+                 
+                 // 分析平面方向
+                 std::string orientation = "";
+                 float nx = coefficients->values[0];
+                 float ny = coefficients->values[1]; 
+                 float nz = coefficients->values[2];
+                 float angle_from_horizontal = acos(abs(nz)) * 180.0 / M_PI;
+                 
+                 if(abs(nz) > 0.8) {
+                     orientation = (nz > 0) ? "Horizontal (facing up)" : "Horizontal (facing down)";
+                 } else if(abs(nx) > 0.8) {
+                     orientation = (nx > 0) ? "Vertical (facing +X)" : "Vertical (facing -X)";
+                 } else if(abs(ny) > 0.8) {
+                     orientation = (ny > 0) ? "Vertical (facing +Y)" : "Vertical (facing -Y)";
+                 } else {
+                     orientation = "Inclined";
+                 }
+                 std::cout << "  - Orientation: " << orientation << std::endl;
+                 std::cout << "  - Angle from horizontal: " << angle_from_horizontal << " degrees" << std::endl;
+                 
+                 // 判断是否为台阶表面（应该接近水平）
+                 bool is_step_surface = (angle_from_horizontal < 30.0) && (nz > 0);
+                 std::cout << "  - Likely step surface: " << (is_step_surface ? "YES" : "NO") << std::endl;
+                 std::cout << std::endl;
+             }
         }
 
         Utilities::getCloudByInliers(cloud_filtered, cloud_filtered, inliers, true, false);
