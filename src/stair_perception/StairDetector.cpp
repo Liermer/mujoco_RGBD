@@ -95,6 +95,7 @@ void StairDetector::processCloud(const pcl::PointCloud<pcl::PointXYZ>::Ptr& clou
     stair_detected_ = isDetectedStair(stairs_arr_, stairs_counts_arr_, detected_stair_filtered_);
 
     if(stair_detected_){
+        detected_stair_cloud_ = detected_stair_filtered_.getCombinedCloud();
         if(config_.debug_){
             std::cout << "Stair detected!" << std::endl;
             std::cout << "  - Type: " << (detected_stair_filtered_.type_ == 0 ? "Up" : "Down") << std::endl;
@@ -332,4 +333,15 @@ void StairDetector::calcPlaneSlope() {
     for (auto& plane : Planes_) {
         plane.calcPlaneSlope();
     }
+}
+
+pcl::PointCloud<pcl::PointXYZ>::Ptr StairDetector::getDetectedStairCloud() const {
+    return detected_stair_cloud_;
+}
+
+std::vector<Plane> StairDetector::getDetectedStairPlanes() const {
+    if (stair_detected_) {
+        return detected_stair_filtered_.Planes_;
+    }
+    return {}; // 如果未检测到楼梯，则返回空向量
 } 

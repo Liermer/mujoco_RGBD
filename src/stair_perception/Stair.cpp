@@ -117,3 +117,12 @@ void Stair::TransformPoseToBase(Eigen::Affine3d& m2bp)
 {
     stair_pose_ = m2bp * stair_pose_in_map_; 
 } 
+
+pcl::PointCloud<pcl::PointXYZ>::Ptr Stair::getCombinedCloud() const
+{
+    pcl::PointCloud<pcl::PointXYZ>::Ptr combined_cloud(new pcl::PointCloud<pcl::PointXYZ>());
+    for(const auto& plane : Planes_){
+        *combined_cloud += *plane.cloud_;
+    }
+    return combined_cloud;
+} 

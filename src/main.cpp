@@ -13,6 +13,7 @@
 #include <limits> // 用于 std::numeric_limits
 
 #include "Pre_process.hpp"
+#include "Plane.hpp"
 #include <pcl/point_cloud.h>
 #include <pcl/point_types.h>
 
@@ -241,7 +242,7 @@ void get_color_from_distance(float& r, float& g, float& b, float distance, float
 
 // 只渲染点云，不包含场景背景
 void draw_point_cloud_overlay(int window_width, int window_height,
-                              mjvScene* robot_scn, mjrContext* main_con,
+                              mjvScene* robot_scn, bool scn_fixed_view, mjrContext* main_con,
                               const std::shared_ptr<pcl::PointCloud<pcl::PointXYZ>>& cloud,
                               float min_dist, float max_dist)
 {
@@ -250,59 +251,41 @@ void draw_point_cloud_overlay(int window_width, int window_height,
     }
 
     mjrRect overlay_rect = {20, window_height - CAM_HEIGHT - 20, CAM_WIDTH, CAM_HEIGHT};
-    
-    // 设置视口但不渲染场景背景
+
+    // 1. 让MuJoCo渲染器设置正确的摄像机矩阵
+    mjr_render(overlay_rect, robot_scn, main_con);
+
+    if(scn_fixed_view){
+    // -- 修复：翻转Y轴以纠正颠倒的视图 --
+    glMatrixMode(GL_PROJECTION);
+    glScalef(1.0, -1.0, 1.0);
+    glMatrixMode(GL_MODELVIEW);
+    }
+    // -- 修复结束 --
+
+    // 2. 清除背景为黑色，但保留摄像机设置
     glPushAttrib(GL_ALL_ATTRIB_BITS);
     glViewport(overlay_rect.left, overlay_rect.bottom, overlay_rect.width, overlay_rect.height);
-
-    // 清除视口区域为黑色背景
     glScissor(overlay_rect.left, overlay_rect.bottom, overlay_rect.width, overlay_rect.height);
     glEnable(GL_SCISSOR_TEST);
     glClearColor(0.0f, 0.0f, 0.0f, 1.0f); // 黑色背景
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
     glDisable(GL_SCISSOR_TEST);
 
-    // 设置投影矩阵以匹配机器人摄像头视角
-    glMatrixMode(GL_PROJECTION);
-    glPushMatrix();
-    glLoadIdentity();
-    
-    // 使用机器人摄像头的投影参数
-    float fovy = 45;
-    float aspect = (float)CAM_WIDTH / (float)CAM_HEIGHT;
-    float znear = 0.01f;
-    float zfar = 100.0f;
-    gluPerspective(fovy, aspect, znear, zfar);
-
-    // 设置模型视图矩阵
-    glMatrixMode(GL_MODELVIEW);
-    glPushMatrix();
-    glLoadIdentity();
-    
-    // 使用机器人摄像头的视角
-    float* cam_pos = robot_scn->camera[0].pos;
-    float* cam_forward = robot_scn->camera[0].forward;
-    float* cam_up = robot_scn->camera[0].up;
-    
-    gluLookAt(cam_pos[0], cam_pos[1], cam_pos[2],
-              cam_pos[0] + cam_forward[0], cam_pos[1] + cam_forward[1], cam_pos[2] + cam_forward[2],
-              cam_up[0], cam_up[1], cam_up[2]);
-
-    // 渲染点云
+    // 3. 矩阵已正确设置，直接渲染点云
     glDisable(GL_LIGHTING);
     glDisable(GL_TEXTURE_2D);
     glEnable(GL_DEPTH_TEST);
     glEnable(GL_BLEND);
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-
     glPointSize(3.0f);
 
     glBegin(GL_POINTS);
     for (const auto& point : cloud->points) {
         if (pcl::isFinite(point)) {
-            float dx = point.x - cam_pos[0];
-            float dy = point.y - cam_pos[1];
-            float dz = point.z - cam_pos[2];
+            float dx = point.x - robot_scn->camera[0].pos[0];
+            float dy = point.y - robot_scn->camera[0].pos[1];
+            float dz = point.z - robot_scn->camera[0].pos[2];
             float dist_to_cam = sqrt(dx*dx + dy*dy + dz*dz);
 
             float r, g, b;
@@ -313,12 +296,76 @@ void draw_point_cloud_overlay(int window_width, int window_height,
     }
     glEnd();
 
-    // 恢复矩阵状态
-    glPopMatrix(); // ModelView
-    glMatrixMode(GL_PROJECTION);
-    glPopMatrix();
-    glMatrixMode(GL_MODELVIEW);
+    glPopAttrib();
+    glViewport(0, 0, window_width, window_height);
+}
 
+// ---------- 新增辅助函数：用不同颜色绘制左下角的楼梯平面 ----------
+void draw_stair_planes_overlay(int window_width, int window_height,
+                               const std::vector<Plane>& planes,
+                               mjvScene* robot_scn, bool scn_fixed_view, mjrContext* main_con)
+{
+    if (planes.empty() || !robot_scn) {
+        return;
+    }
+
+    // 为不同平面预定义颜色
+    const std::vector<std::vector<float>> colors = {
+        {1.0f, 1.0f, 0.0f}, // Yellow
+        {1.0f, 0.0f, 1.0f}, // Magenta
+        {0.0f, 1.0f, 1.0f},  // Cyan
+        {1.0f, 0.0f, 0.0f}, // Red
+        {0.0f, 1.0f, 0.0f}, // Green
+        {0.0f, 0.0f, 1.0f}  // Blue
+    };
+
+    mjrRect overlay_rect = {20, 20, CAM_WIDTH, CAM_HEIGHT};
+
+    // 1. 让MuJoCo渲染器设置正确的摄像机矩阵
+    mjr_render(overlay_rect, robot_scn, main_con);
+
+    if(scn_fixed_view){
+    // -- 修复：翻转Y轴以纠正颠倒的视图 --
+    glMatrixMode(GL_PROJECTION);
+    glScalef(1.0, -1.0, 1.0);
+    glMatrixMode(GL_MODELVIEW);
+    }
+    // -- 修复结束 --
+
+    // 2. 清除背景为黑色，但保留摄像机设置
+    glPushAttrib(GL_ALL_ATTRIB_BITS);
+    glViewport(overlay_rect.left, overlay_rect.bottom, overlay_rect.width, overlay_rect.height);
+    glScissor(overlay_rect.left, overlay_rect.bottom, overlay_rect.width, overlay_rect.height);
+    glEnable(GL_SCISSOR_TEST);
+    glClearColor(0.0f, 0.0f, 0.0f, 1.0f); // 黑色背景
+    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+    glDisable(GL_SCISSOR_TEST);
+
+    // 3. 矩阵已正确设置，直接渲染点云
+    glDisable(GL_LIGHTING);
+    glDisable(GL_TEXTURE_2D);
+    glEnable(GL_DEPTH_TEST);
+    glPointSize(3.0f);
+
+    for (size_t i = 0; i < planes.size(); ++i) {
+        const auto& plane = planes[i];
+        if (!plane.cloud_ || plane.cloud_->empty()) {
+            continue;
+        }
+
+        const auto& color = colors[i % colors.size()]; // 循环使用颜色
+        glColor3f(color[0], color[1], color[2]);
+
+        glBegin(GL_POINTS);
+        for (const auto& point : plane.cloud_->points) {
+            if (pcl::isFinite(point)) {
+                glVertex3f(point.x, point.y, point.z);
+            }
+        }
+        glEnd();
+    }
+
+    // 恢复状态
     glPopAttrib();
     glViewport(0, 0, window_width, window_height);
 }
@@ -492,7 +539,11 @@ int main(int argc, char** argv){
         draw_texture_overlay(w, h, rgb_tex_id, 1);   // 右下角
 
         // 7. 渲染左上角的3D点云覆盖图
-        draw_point_cloud_overlay(w, h, &scn, &con, pointCloud, min_dist_raw, max_dist_raw);
+        draw_point_cloud_overlay(w, h, &scn, false, &con, pointCloud, min_dist_raw, max_dist_raw);
+        
+        // 8. 渲染左下角的已识别楼梯点云
+        std::vector<Plane> stair_planes = cloud_processor.get_stair_planes();
+        draw_stair_planes_overlay(w, h, stair_planes, &scn_robot, true, &con);
 
         glfwSwapBuffers(win);
         glfwPollEvents();

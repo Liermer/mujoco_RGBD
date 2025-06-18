@@ -13,10 +13,10 @@
 #include "Utilities.hpp"
 
 struct StairDetectorConfig {
-    double leaf_size_xy_ = 0.05;
-    double leaf_size_z_ = 0.05;
-    double min_x_ = 0.3;
-    double max_x_ = 3.0;
+    double leaf_size_xy_ = 0.04;
+    double leaf_size_z_ = 0.08;
+    double min_x_ = -0.3;
+    double max_x_ = 0.3;
     double min_y_ = -1.0;
     double max_y_ = 1.0;
     double min_z_ = -1.0;
@@ -46,6 +46,11 @@ public:
 
     void processCloud(const pcl::PointCloud<pcl::PointXYZ>::Ptr& cloud);
     bool isStairDetected(Stair& detected_stair);
+    bool arePlanesEmpty() const { return planes_empty_; }
+    std::vector<Plane> getPlanes() const { return Planes_; }
+    pcl::PointCloud<pcl::PointXYZ>::Ptr getCloud() const { return cloud_; }
+    pcl::PointCloud<pcl::PointXYZ>::Ptr getDetectedStairCloud() const;
+    std::vector<Plane> getDetectedStairPlanes() const;
 
 private:
     void reset();
@@ -72,6 +77,7 @@ private:
     std::vector<int> stairs_counts_arr_;
     bool stair_detected_;
     bool planes_empty_;
+    pcl::PointCloud<pcl::PointXYZ>::Ptr detected_stair_cloud_;
 };
 
 #endif // STAIR_DETECTOR_HPP 

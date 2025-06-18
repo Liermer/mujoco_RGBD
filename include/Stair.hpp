@@ -20,6 +20,9 @@
 #include <Eigen/Geometry>
 #include <algorithm> // for std::sort
 
+#include <pcl/point_cloud.h>
+#include <pcl/point_types.h>
+
 #include "Plane.hpp"
 #include "Utilities.hpp"
 
@@ -44,6 +47,8 @@ public:
 
     void TransformPoseToMap(Eigen::Affine3d& bp2m);
     void TransformPoseToBase(Eigen::Affine3d& m2bp);
+
+    pcl::PointCloud<pcl::PointXYZ>::Ptr getCombinedCloud() const;
 
     // Members:
     std::vector<Plane> Planes_;
